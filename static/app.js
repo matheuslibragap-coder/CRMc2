@@ -2,9 +2,14 @@
 
 let COLUNAS = [];
 let PRODUTOS = [];
+let USUARIOS = [];
+let usuario = null; // quem está logado
+let visao = "meus"; // "meus" ou "geral"
 let leads = [];
 let leadEditando = null; // id do lead aberto no formulário (null = novo)
 
+const telaLogin = document.getElementById("tela-login");
+const telaApp = document.getElementById("tela-app");
 const quadro = document.getElementById("quadro");
 const modal = document.getElementById("modal");
 const form = document.getElementById("form-lead");
@@ -19,20 +24,82 @@ async function api(metodo, url, corpo) {
     body: corpo ? JSON.stringify(corpo) : undefined,
   });
   const dados = await resp.json().catch(() => ({}));
+  if (resp.status === 401 && usuario) {
+    // Sessão expirou: volta para a tela de login
+    mostrarLogin();
+  }
   if (!resp.ok) throw new Error(dados.erro || "Erro ao falar com o servidor.");
   return dados;
 }
 
-async function carregar() {
+// ---------- login ----------
+function mostrarLogin() {
+  usuario = null;
+  modal.open && modal.close();
+  telaApp.hidden = true;
+  telaLogin.hidden = false;
+  document.getElementById("form-login").senha.value = "";
+}
+
+async function iniciar() {
   try {
-    const dados = await api("GET", "/api/leads");
-    COLUNAS = dados.colunas;
-    PRODUTOS = dados.produtos;
+    const dados = await api("GET", "/api/eu");
+    entrarNoSistema(dados);
+  } catch (e) {
+    mostrarLogin();
+  }
+}
+
+function entrarNoSistema(dados) {
+  usuario = dados.usuario;
+  COLUNAS = dados.colunas;
+  PRODUTOS = dados.produtos;
+  USUARIOS = dados.usuarios;
+  document.getElementById("nome-usuario").textContent = usuario;
+  telaLogin.hidden = true;
+  telaApp.hidden = false;
+  preencherSelects();
+  trocarVisao("meus");
+}
+
+document.getElementById("form-login").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const erroLogin = document.getElementById("login-erro");
+  erroLogin.hidden = true;
+  try {
+    await api("POST", "/api/login", { usuario: f.usuario.value, senha: f.senha.value });
+    entrarNoSistema(await api("GET", "/api/eu"));
+  } catch (e) {
+    erroLogin.textContent = e.message;
+    erroLogin.hidden = false;
+  }
+});
+
+document.getElementById("btn-sair").onclick = async () => {
+  await api("POST", "/api/logout").catch(() => {});
+  mostrarLogin();
+};
+
+// ---------- abas ----------
+document.querySelectorAll(".aba").forEach((aba) => {
+  aba.onclick = () => trocarVisao(aba.dataset.visao);
+});
+
+async function trocarVisao(nova) {
+  visao = nova;
+  document.querySelectorAll(".aba").forEach((a) => a.classList.toggle("ativa", a.dataset.visao === visao));
+  document.getElementById("aviso-visao").hidden = visao !== "geral";
+  await carregarLeads();
+}
+
+async function carregarLeads() {
+  try {
+    const dados = await api("GET", `/api/leads?visao=${visao}`);
     leads = dados.leads;
-    preencherSelects();
     desenhar();
   } catch (e) {
-    quadro.textContent = "Não foi possível carregar os leads. O servidor está rodando?";
+    if (usuario) quadro.textContent = "Não foi possível carregar os leads. Tente recarregar a página.";
   }
 }
 
@@ -70,6 +137,11 @@ function criarCard(lead) {
   card.draggable = true;
   card.dataset.id = lead.id;
 
+  if (visao === "geral") {
+    const dono = el("div", `dono d-${USUARIOS.indexOf(lead.dono)}`, lead.dono);
+    if (lead.dono === usuario) dono.textContent += " (você)";
+    card.append(dono);
+  }
   card.append(el("div", "card-nome", lead.nome));
   if (lead.telefone) card.append(linhaInfo("Tel", lead.telefone));
   if (lead.email) card.append(linhaInfo("E-mail", lead.email));
@@ -84,9 +156,12 @@ function criarCard(lead) {
   const botoes = el("div", "card-botoes");
   const bEditar = el("button", "", "Editar");
   bEditar.onclick = () => abrirFormulario(lead);
-  const bExcluir = el("button", "excluir", "Excluir");
-  bExcluir.onclick = () => excluir(lead);
-  botoes.append(bEditar, bExcluir);
+  botoes.append(bEditar);
+  if (lead.dono === usuario) {
+    const bExcluir = el("button", "excluir", "Excluir");
+    bExcluir.onclick = () => excluir(lead);
+    botoes.append(bExcluir);
+  }
   rodape.append(botoes);
   card.append(rodape);
 
@@ -147,7 +222,7 @@ async function moverLead(id, novaColuna) {
   }
 }
 
-// ---------- formulário ----------
+// ---------- formulário de lead ----------
 function preencherSelects() {
   const caixa = document.getElementById("opcoes-produtos");
   caixa.innerHTML = "";
@@ -168,8 +243,10 @@ function abrirFormulario(lead) {
   form.reset();
   formErro.hidden = true;
   leadEditando = lead ? lead.id : null;
-  document.getElementById("modal-titulo").textContent = lead ? "Editar lead" : "Novo lead";
-  btnExcluir.hidden = !lead;
+  let titulo = lead ? "Editar lead" : "Novo lead";
+  if (lead && lead.dono !== usuario) titulo += ` (de ${lead.dono})`;
+  document.getElementById("modal-titulo").textContent = titulo;
+  btnExcluir.hidden = !lead || lead.dono !== usuario;
   if (lead) {
     form.nome.value = lead.nome;
     form.telefone.value = lead.telefone;
@@ -233,4 +310,34 @@ btnExcluir.onclick = async () => {
 document.getElementById("btn-cancelar").onclick = () => modal.close();
 document.getElementById("btn-novo").onclick = () => abrirFormulario(null);
 
-carregar();
+// ---------- trocar senha ----------
+const modalSenha = document.getElementById("modal-senha");
+const formSenha = document.getElementById("form-senha");
+const senhaErro = document.getElementById("senha-erro");
+
+document.getElementById("btn-senha").onclick = () => {
+  formSenha.reset();
+  senhaErro.hidden = true;
+  modalSenha.showModal();
+};
+document.getElementById("btn-senha-cancelar").onclick = () => modalSenha.close();
+
+formSenha.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  senhaErro.hidden = true;
+  if (formSenha.nova.value !== formSenha.confirma.value) {
+    senhaErro.textContent = "As duas novas senhas não são iguais.";
+    senhaErro.hidden = false;
+    return;
+  }
+  try {
+    await api("POST", "/api/senha", { atual: formSenha.atual.value, nova: formSenha.nova.value });
+    modalSenha.close();
+    alert("Senha trocada com sucesso!");
+  } catch (e) {
+    senhaErro.textContent = e.message;
+    senhaErro.hidden = false;
+  }
+});
+
+iniciar();

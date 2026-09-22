@@ -12,6 +12,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -59,11 +60,104 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
   padding: 16px 24px;
 }
+.topo-direita { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ola { color: #fff; font-size: 15px; margin-right: 4px; }
+.ola b { color: var(--amarelo); }
+
+/* ---------- abas ---------- */
+.abas {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(26, 16, 51, .6);
+  border: 3px solid var(--contorno);
+  border-radius: 999px;
+}
+.aba {
+  font: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  color: #e5dbff;
+  background: none;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  padding: 6px 16px;
+  cursor: pointer;
+}
+.aba:hover { color: #fff; }
+.aba.ativa {
+  color: var(--texto);
+  background: var(--amarelo);
+  border-color: var(--contorno);
+}
+.aviso-visao {
+  position: relative;
+  z-index: 1;
+  margin: 0 24px 12px;
+  padding: 8px 14px;
+  background: rgba(255, 250, 240, .95);
+  border: 3px solid var(--contorno);
+  border-radius: 14px;
+  box-shadow: 3px 3px 0 var(--contorno);
+  font-size: 14px;
+}
+
+/* ---------- login ---------- */
+.tela-login {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.caixa-login {
+  width: min(380px, 100%);
+  background: var(--card);
+  border: 3px solid var(--contorno);
+  border-radius: 24px;
+  box-shadow: 6px 6px 0 var(--contorno);
+  padding: 24px 26px 26px;
+}
+.logo-login { justify-content: center; }
+.subtitulo { text-align: center; margin: 2px 0 18px; font-weight: 600; color: var(--texto-suave); }
+.caixa-login label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+.caixa-login input, .caixa-login select {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 10px;
+  font: inherit;
+  font-weight: 400;
+  border: 2px solid var(--contorno);
+  border-radius: 10px;
+  background: #fff;
+}
+.btn-largo { width: 100%; font-size: 17px; padding: 10px; }
+
+/* Nome do dono do lead (Visão Geral) */
+.dono {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 9px;
+  margin-bottom: 6px;
+  border: 2px solid var(--contorno);
+  border-radius: 6px;
+  background: var(--cor-dono, #e9ecef);
+}
+.d-0 { --cor-dono: #ffec99; }
+.d-1 { --cor-dono: #a5d8ff; }
+.d-2 { --cor-dono: #d0bfff; }
+.d-3 { --cor-dono: #b2f2bb; }
 .logo { display: flex; align-items: center; gap: 10px; }
 .foguete { width: 48px; height: 48px; transform: rotate(35deg); animation: flutuar 3s ease-in-out infinite; }
-.topo h1 {
+.logo h1 {
   margin: 0;
   font-size: 40px;
   font-weight: 700;
@@ -205,7 +299,8 @@ body {
 .btn:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--contorno); }
 .btn-primario { background: var(--amarelo); }
 .btn-perigo { background: #ff8787; }
-.topo .btn { font-size: 17px; padding: 9px 20px; }
+.topo .btn-primario { font-size: 17px; padding: 9px 20px; }
+.btn-pequeno { font-size: 13px; padding: 5px 12px; box-shadow: 2px 2px 0 var(--contorno); }
 
 /* ---------- formulário ---------- */
 dialog {
@@ -268,5 +363,6 @@ fieldset legend { margin-bottom: 6px; padding: 0; }
 
 @media (max-width: 520px) {
   .linha-dupla { grid-template-columns: 1fr; }
-  .topo h1 { font-size: 30px; }
+  .logo h1 { font-size: 30px; }
+  .aba { font-size: 13px; padding: 5px 10px; }
 }

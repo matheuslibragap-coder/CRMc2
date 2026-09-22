@@ -44,21 +44,67 @@
     </svg>
   </div>
 
-  <header class="topo">
-    <div class="logo">
-      <svg class="foguete" viewBox="0 0 64 64" aria-hidden="true">
-        <path d="M22 44 L12 54 L14 42 Z" fill="#ff6b6b" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
-        <path d="M42 44 L52 54 L50 42 Z" fill="#ff6b6b" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
-        <path d="M32 4 C44 14 46 32 42 46 L22 46 C18 32 20 14 32 4 Z" fill="#f8f9fa" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
-        <circle cx="32" cy="24" r="6" fill="#74c0fc" stroke="#1a1033" stroke-width="3"/>
-        <path d="M26 48 Q32 62 38 48 Z" fill="#ffd43b" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
-      </svg>
-      <h1>MASTER</h1>
-    </div>
-    <button id="btn-novo" class="btn btn-primario">+ Novo lead</button>
-  </header>
+  <!-- Tela de login -->
+  <section id="tela-login" class="tela-login" hidden>
+    <form id="form-login" class="caixa-login">
+      <div class="logo logo-login">
+        <svg class="foguete" viewBox="0 0 64 64" aria-hidden="true"><use href="#icone-foguete"/></svg>
+        <h1>MASTER</h1>
+      </div>
+      <p class="subtitulo">Comercial 2</p>
+      <label>Usuário
+        <select name="usuario" required>
+          <option value="">Selecione...</option>
+          <option>Libraga</option>
+          <option>Paulinho</option>
+          <option>Nico</option>
+          <option>Dani</option>
+        </select>
+      </label>
+      <label>Senha
+        <input type="password" name="senha" required autocomplete="current-password">
+      </label>
+      <p id="login-erro" class="erro" hidden></p>
+      <button type="submit" class="btn btn-primario btn-largo">Entrar</button>
+    </form>
+  </section>
 
-  <main id="quadro" class="quadro"></main>
+  <!-- Sistema (depois do login) -->
+  <div id="tela-app" hidden>
+    <header class="topo">
+      <div class="logo">
+        <svg class="foguete" viewBox="0 0 64 64" aria-hidden="true"><use href="#icone-foguete"/></svg>
+        <h1>MASTER</h1>
+      </div>
+      <nav class="abas">
+        <button class="aba ativa" data-visao="meus">Meus leads</button>
+        <button class="aba" data-visao="geral">Visão Geral - Comercial 2</button>
+      </nav>
+      <div class="topo-direita">
+        <span class="ola">Olá, <b id="nome-usuario"></b>!</span>
+        <button id="btn-senha" class="btn btn-pequeno">Trocar senha</button>
+        <button id="btn-sair" class="btn btn-pequeno">Sair</button>
+        <button id="btn-novo" class="btn btn-primario">+ Novo lead</button>
+      </div>
+    </header>
+
+    <p id="aviso-visao" class="aviso-visao" hidden>
+      Aqui você vê os leads de toda a equipe. Pode editar e mover para ajudar um colega; só o dono pode excluir.
+    </p>
+
+    <main id="quadro" class="quadro"></main>
+  </div>
+
+  <!-- Desenho do foguete, reaproveitado no login e no topo -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="icone-foguete" viewBox="0 0 64 64">
+      <path d="M22 44 L12 54 L14 42 Z" fill="#ff6b6b" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M42 44 L52 54 L50 42 Z" fill="#ff6b6b" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M32 4 C44 14 46 32 42 46 L22 46 C18 32 20 14 32 4 Z" fill="#f8f9fa" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
+      <circle cx="32" cy="24" r="6" fill="#74c0fc" stroke="#1a1033" stroke-width="3"/>
+      <path d="M26 48 Q32 62 38 48 Z" fill="#ffd43b" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
+    </symbol>
+  </svg>
 
   <dialog id="modal">
     <form id="form-lead" method="dialog">
@@ -100,6 +146,27 @@
         <button type="button" id="btn-excluir" class="btn btn-perigo" hidden>Excluir</button>
         <span class="espaco"></span>
         <button type="button" id="btn-cancelar" class="btn">Cancelar</button>
+        <button type="submit" class="btn btn-primario">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modal-senha">
+    <form id="form-senha">
+      <h2>Trocar senha</h2>
+      <label>Senha atual
+        <input type="password" name="atual" required autocomplete="current-password">
+      </label>
+      <label>Nova senha <small>(mínimo 8 caracteres)</small>
+        <input type="password" name="nova" required minlength="8" autocomplete="new-password">
+      </label>
+      <label>Repita a nova senha
+        <input type="password" name="confirma" required minlength="8" autocomplete="new-password">
+      </label>
+      <p id="senha-erro" class="erro" hidden></p>
+      <div class="acoes">
+        <span class="espaco"></span>
+        <button type="button" id="btn-senha-cancelar" class="btn">Cancelar</button>
         <button type="submit" class="btn btn-primario">Salvar</button>
       </div>
     </form>
