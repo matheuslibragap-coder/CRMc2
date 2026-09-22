@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRM de Leads</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topo">
+    <h1>CRM de Leads</h1>
+    <button id="btn-novo" class="btn btn-primario">+ Novo lead</button>
+  </header>
+
+  <main id="quadro" class="quadro"></main>
+
+  <dialog id="modal">
+    <form id="form-lead" method="dialog">
+      <h2 id="modal-titulo">Novo lead</h2>
+
+      <label>Nome do lead / empresa *
+        <input type="text" name="nome" required maxlength="200">
+      </label>
+
+      <label>Contato (telefone ou e-mail)
+        <input type="text" name="contato" maxlength="200">
+      </label>
+
+      <label>Produto de interesse *
+        <select name="produto" required></select>
+      </label>
+
+      <label>Etapa
+        <select name="coluna"></select>
+      </label>
+
+      <label>Observações
+        <textarea name="observacoes" rows="5"></textarea>
+      </label>
+
+      <p id="form-erro" class="erro" hidden></p>
+
+      <div class="acoes">
+        <button type="button" id="btn-excluir" class="btn btn-perigo" hidden>Excluir</button>
+        <span class="espaco"></span>
+        <button type="button" id="btn-cancelar" class="btn">Cancelar</button>
+        <button type="submit" class="btn btn-primario">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
