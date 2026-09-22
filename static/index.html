@@ -3,12 +3,58 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CRM de Leads</title>
+  <title>MASTER</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Decoração espacial (fica atrás de tudo) -->
+  <div class="ceu" aria-hidden="true">
+    <div class="estrelas estrelas-1"></div>
+    <div class="estrelas estrelas-2"></div>
+
+    <svg class="deco planeta" viewBox="0 0 200 200">
+      <!-- metade de trás do anel -->
+      <path d="M6 112 A94 24 0 0 1 194 112" fill="none" stroke="#1a1033" stroke-width="14"/>
+      <path d="M6 112 A94 24 0 0 1 194 112" fill="none" stroke="#ffd43b" stroke-width="7"/>
+      <circle cx="100" cy="100" r="62" fill="#ff8fab" stroke="#1a1033" stroke-width="6"/>
+      <path d="M50 76 Q100 62 150 76" fill="none" stroke="#e5678a" stroke-width="10" stroke-linecap="round"/>
+      <path d="M42 126 Q100 140 158 126" fill="none" stroke="#e5678a" stroke-width="10" stroke-linecap="round"/>
+      <circle cx="76" cy="66" r="10" fill="#ffc2d1"/>
+      <!-- metade da frente do anel -->
+      <path d="M6 112 A94 24 0 0 0 194 112" fill="none" stroke="#1a1033" stroke-width="14"/>
+      <path d="M6 112 A94 24 0 0 0 194 112" fill="none" stroke="#ffd43b" stroke-width="7"/>
+    </svg>
+
+    <svg class="deco lua" viewBox="0 0 120 120">
+      <circle cx="60" cy="60" r="50" fill="#ffe8a3" stroke="#1a1033" stroke-width="5"/>
+      <circle cx="42" cy="44" r="10" fill="#f5cf6b" stroke="#1a1033" stroke-width="3"/>
+      <circle cx="75" cy="72" r="14" fill="#f5cf6b" stroke="#1a1033" stroke-width="3"/>
+      <circle cx="48" cy="82" r="6" fill="#f5cf6b" stroke="#1a1033" stroke-width="3"/>
+    </svg>
+
+    <svg class="deco ovni" viewBox="0 0 140 80">
+      <ellipse cx="70" cy="32" rx="28" ry="24" fill="#a5f3fc" stroke="#1a1033" stroke-width="4"/>
+      <ellipse cx="70" cy="50" rx="64" ry="18" fill="#9775fa" stroke="#1a1033" stroke-width="4"/>
+      <circle cx="36" cy="52" r="5" fill="#ffd43b" stroke="#1a1033" stroke-width="2"/>
+      <circle cx="70" cy="56" r="5" fill="#ffd43b" stroke="#1a1033" stroke-width="2"/>
+      <circle cx="104" cy="52" r="5" fill="#ffd43b" stroke="#1a1033" stroke-width="2"/>
+    </svg>
+  </div>
+
   <header class="topo">
-    <h1>CRM de Leads</h1>
+    <div class="logo">
+      <svg class="foguete" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M22 44 L12 54 L14 42 Z" fill="#ff6b6b" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M42 44 L52 54 L50 42 Z" fill="#ff6b6b" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M32 4 C44 14 46 32 42 46 L22 46 C18 32 20 14 32 4 Z" fill="#f8f9fa" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
+        <circle cx="32" cy="24" r="6" fill="#74c0fc" stroke="#1a1033" stroke-width="3"/>
+        <path d="M26 48 Q32 62 38 48 Z" fill="#ffd43b" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
+      </svg>
+      <h1>MASTER</h1>
+    </div>
     <button id="btn-novo" class="btn btn-primario">+ Novo lead</button>
   </header>
 
@@ -18,24 +64,34 @@
     <form id="form-lead" method="dialog">
       <h2 id="modal-titulo">Novo lead</h2>
 
-      <label>Nome do lead / empresa *
+      <label>Nome *
         <input type="text" name="nome" required maxlength="200">
       </label>
 
-      <label>Contato (telefone ou e-mail)
-        <input type="text" name="contato" maxlength="200">
+      <div class="linha-dupla">
+        <label>Telefone
+          <input type="tel" name="telefone" maxlength="50">
+        </label>
+        <label>E-mail
+          <input type="email" name="email" maxlength="200">
+        </label>
+      </div>
+
+      <label>Conta
+        <input type="text" name="conta" maxlength="200">
       </label>
 
-      <label>Produto de interesse *
-        <select name="produto" required></select>
-      </label>
+      <fieldset>
+        <legend>Produtos de interesse * <small>(pode marcar mais de um)</small></legend>
+        <div id="opcoes-produtos" class="opcoes-produtos"></div>
+      </fieldset>
 
       <label>Etapa
         <select name="coluna"></select>
       </label>
 
       <label>Observações
-        <textarea name="observacoes" rows="5"></textarea>
+        <textarea name="observacoes" rows="4"></textarea>
       </label>
 
       <p id="form-erro" class="erro" hidden></p>

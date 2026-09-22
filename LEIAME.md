@@ -1,7 +1,7 @@
-# CRM de Leads
+# MASTER
 
-CRM simples em quadro Kanban para acompanhar leads de venda (ProntoPost, site institucional, vitrine virtual).
-Roda no seu computador e não precisa de internet nem de instalar nenhuma biblioteca, só o Python.
+CRM simples em quadro Kanban para acompanhar leads de venda (eGestor NC/CI, ProntoPost, Site, Vitrine).
+Roda no seu computador e não precisa instalar nenhuma biblioteca, só o Python.
 
 ## Pré-requisito
 
@@ -28,7 +28,7 @@ O navegador abre sozinho. Se preferir, o comando direto também funciona:
 python3 server.py
 ```
 
-Deixe o terminal aberto enquanto usa o CRM. Para encerrar, aperte `Ctrl+C` ou feche o terminal.
+Deixe o terminal aberto enquanto usa o MASTER. Para encerrar, aperte `Ctrl+C` ou feche o terminal.
 
 (No Windows: clique duas vezes em `iniciar.bat`.)
 

@@ -1,4 +1,4 @@
-// CRM de Leads - lógica da interface
+// MASTER - lógica da interface
 
 let COLUNAS = [];
 let PRODUTOS = [];
@@ -49,16 +49,34 @@ function el(tag, classe, texto) {
   return e;
 }
 
+// Ícone de planetinha no topo de cada coluna
+const ICONE_COLUNA =
+  '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+  '<circle cx="12" cy="12" r="7" fill="#fff" stroke="#1a1033" stroke-width="2"/>' +
+  '<ellipse cx="12" cy="13" rx="11" ry="3.5" fill="none" stroke="#1a1033" stroke-width="2"/></svg>';
+
+function tagProduto(produto) {
+  return el("span", `tag p-${PRODUTOS.indexOf(produto)}`, produto);
+}
+
+function linhaInfo(rotulo, valor) {
+  const linha = el("div", "card-linha");
+  linha.append(el("b", "", rotulo + ": "), valor);
+  return linha;
+}
+
 function criarCard(lead) {
   const card = el("div", "card");
   card.draggable = true;
   card.dataset.id = lead.id;
 
   card.append(el("div", "card-nome", lead.nome));
-  if (lead.contato) card.append(el("div", "card-linha", lead.contato));
-  const linhaProduto = el("div", "card-linha");
-  linhaProduto.append(el("span", "tag", lead.produto));
-  card.append(linhaProduto);
+  if (lead.telefone) card.append(linhaInfo("Tel", lead.telefone));
+  if (lead.email) card.append(linhaInfo("E-mail", lead.email));
+  if (lead.conta) card.append(linhaInfo("Conta", lead.conta));
+  const tags = el("div", "tags");
+  lead.produtos.forEach((p) => tags.append(tagProduto(p)));
+  card.append(tags);
   if (lead.observacoes) card.append(el("div", "card-obs", lead.observacoes));
 
   const rodape = el("div", "card-rodape");
@@ -88,7 +106,10 @@ function desenhar() {
 
     const coluna = el("section", "coluna");
     const topo = el("div", "coluna-topo");
-    topo.append(el("span", "", nomeColuna), el("span", "contador", doColuna.length));
+    const titulo = el("span", "coluna-titulo");
+    titulo.innerHTML = ICONE_COLUNA;
+    titulo.append(nomeColuna);
+    topo.append(titulo, el("span", "contador", doColuna.length));
     const cards = el("div", "cards");
     doColuna.forEach((l) => cards.append(criarCard(l)));
     coluna.append(topo, cards);
@@ -128,8 +149,17 @@ async function moverLead(id, novaColuna) {
 
 // ---------- formulário ----------
 function preencherSelects() {
-  form.produto.innerHTML = '<option value="">Selecione...</option>';
-  PRODUTOS.forEach((p) => form.produto.append(new Option(p, p)));
+  const caixa = document.getElementById("opcoes-produtos");
+  caixa.innerHTML = "";
+  PRODUTOS.forEach((p, i) => {
+    const opcao = el("label", `opcao-produto p-${i}`);
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.name = "produtos";
+    check.value = p;
+    opcao.append(check, el("span", "", p));
+    caixa.append(opcao);
+  });
   form.coluna.innerHTML = "";
   COLUNAS.forEach((c) => form.coluna.append(new Option(c, c)));
 }
@@ -142,8 +172,12 @@ function abrirFormulario(lead) {
   btnExcluir.hidden = !lead;
   if (lead) {
     form.nome.value = lead.nome;
-    form.contato.value = lead.contato;
-    form.produto.value = lead.produto;
+    form.telefone.value = lead.telefone;
+    form.email.value = lead.email;
+    form.conta.value = lead.conta;
+    form.querySelectorAll('input[name="produtos"]').forEach((c) => {
+      c.checked = lead.produtos.includes(c.value);
+    });
     form.coluna.value = lead.coluna;
     form.observacoes.value = lead.observacoes;
   } else {
@@ -157,8 +191,10 @@ form.addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const dados = {
     nome: form.nome.value,
-    contato: form.contato.value,
-    produto: form.produto.value,
+    telefone: form.telefone.value,
+    email: form.email.value,
+    conta: form.conta.value,
+    produtos: [...form.querySelectorAll('input[name="produtos"]:checked')].map((c) => c.value),
     coluna: form.coluna.value,
     observacoes: form.observacoes.value,
   };
