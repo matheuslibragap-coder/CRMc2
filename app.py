@@ -77,7 +77,7 @@ MAX_TENTATIVAS = 5
 BLOQUEIO_SEGUNDOS = 15 * 60
 _tentativas = {}  # usuario -> (quantidade de erros, horário do último erro)
 
-VERSAO_BANCO = 6
+VERSAO_BANCO = 7
 
 
 def agora():
@@ -353,6 +353,12 @@ def migrar_v6(conn):
                           l["descartado_em"] or l["data_criacao"] + "T00:00:00"))
 
 
+def migrar_v7(conn):
+    """Link Fattura no lead."""
+    if "link_fattura" not in colunas_da_tabela(conn, "leads"):
+        conn.execute("ALTER TABLE leads ADD COLUMN link_fattura TEXT NOT NULL DEFAULT ''")
+
+
 def criar_banco():
     """Cria a pasta, o banco e os usuários na primeira execução."""
     PASTA_DADOS.mkdir(exist_ok=True)
@@ -387,6 +393,8 @@ def criar_banco():
             for nome, papel, na_meta, cor in USUARIOS_INICIAIS:
                 conn.execute("UPDATE usuarios SET papel = ?, na_meta = ?, cor = ? WHERE nome = ?",
                              (papel, na_meta, cor, nome))
+        if versao < 7:
+            migrar_v7(conn)
         conn.execute(f"PRAGMA user_version = {VERSAO_BANCO}")
         # Conversa geral "Comercial 2" com todos os usuários
         conn.execute(
@@ -854,6 +862,7 @@ def leads_completos(conn, where="", params=()):
             "id": l["id"], "nome": l["nome"], "telefone": l["telefone"], "email": l["email"],
             "conta": l["conta"], "produtos": json.loads(l["produtos"]),
             "origem": l["origem"], "origem_detalhe": l["origem_detalhe"],
+            "link_fattura": l["link_fattura"],
             "valor_proposta": l["valor_proposta"], "data_criacao": l["data_criacao"],
             "coluna": l["coluna"], "dono": l["dono"],
             "descartado": bool(l["descartado"]), "motivo_descarte": l["motivo_descarte"],
@@ -907,10 +916,17 @@ def validar_lead(dados):
         "conta": texto(dados, "conta", limite=200),
         "origem": texto(dados, "origem", limite=100),
         "origem_detalhe": texto(dados, "origem_detalhe", limite=200),
+        "link_fattura": texto(dados, "link_fattura", limite=500),
         "coluna": texto(dados, "coluna") or COLUNAS_FUNIL[0],
     }
     if lead["coluna"] not in COLUNAS:
         raise erro(400, "Coluna inválida.")
+    if lead["link_fattura"]:
+        # Só links da web (evita endereços perigosos como "javascript:")
+        if not re.match(r"https?://", lead["link_fattura"], re.I):
+            lead["link_fattura"] = "https://" + lead["link_fattura"]
+        if not re.fullmatch(r"https?://[^\s<>\"']+\.[^\s<>\"']+", lead["link_fattura"], re.I):
+            raise erro(400, "Link Fattura inválido. Cole o endereço completo, ex.: https://...")
     carteira = lead["coluna"] == CARTEIRA
 
     produtos = dados.get("produtos") or []
@@ -1064,11 +1080,12 @@ def rota_criar_lead(req):
                 raise Resposta(409, {"erro": "Já existe lead com esses dados.", "duplicados": duplicados})
         cur = conn.execute(
             """INSERT INTO leads (nome, telefone, email, conta, produtos, origem,
-                                  origem_detalhe, valor_proposta, data_criacao, coluna, dono)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                  origem_detalhe, valor_proposta, data_criacao, coluna, dono,
+                                  link_fattura)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (lead["nome"], lead["telefone"], lead["email"], lead["conta"], lead["produtos"],
              lead["origem"], lead["origem_detalhe"], lead["valor_proposta"],
-             momento[:10], lead["coluna"], dono),
+             momento[:10], lead["coluna"], dono, lead["link_fattura"]),
         )
         lead_id = cur.lastrowid
         detalhe = f"criado por {usuario}" if dono != usuario else ""
@@ -1107,11 +1124,11 @@ def rota_editar_lead(req, lead_id):
             venda = ler_venda(dados.get("venda"), lead["origem"])
         conn.execute(
             """UPDATE leads SET nome = ?, telefone = ?, email = ?, conta = ?, produtos = ?,
-                   origem = ?, origem_detalhe = ?, valor_proposta = ?, coluna = ?
+                   origem = ?, origem_detalhe = ?, valor_proposta = ?, coluna = ?, link_fattura = ?
                WHERE id = ?""",
             (lead["nome"], lead["telefone"], lead["email"], lead["conta"], lead["produtos"],
              lead["origem"], lead["origem_detalhe"], lead["valor_proposta"], lead["coluna"],
-             lead_id),
+             lead["link_fattura"], lead_id),
         )
         if lead["coluna"] != atual["coluna"]:
             registrar(conn, lead_id, "etapa", lead["coluna"], f"saiu de {atual['coluna']}", usuario)
@@ -1199,6 +1216,29 @@ def rota_minhas_atividades(req):
     with banco() as conn:
         linhas = conn.execute(sql + " ORDER BY a.quando", params).fetchall()
     raise Resposta(200, {"atividades": [dict(l) for l in linhas]})
+
+
+def rota_agenda(req):
+    """Atividades (pendentes e concluídas) de um período, para a Agenda Espacial.
+
+    escopo=minha: leads da pessoa e atividades que ela criou. escopo=equipe: todo o Comercial 2.
+    """
+    usuario = exigir_login(req)
+    inicio, fim = ler_data(req.parametro("inicio")), ler_data(req.parametro("fim"))
+    sql = ("SELECT a.id, a.descricao, a.quando, a.concluida, a.concluida_em, a.criado_por, "
+           "a.google_link, l.id AS lead_id, l.nome, l.conta, l.dono, l.coluna "
+           "FROM atividades a JOIN leads l ON l.id = a.lead_id "
+           "WHERE l.descartado = 0 AND a.quando >= ? AND a.quando <= ?")
+    params = [inicio.isoformat(), fim.isoformat() + "T23:59"]
+    if req.parametro("escopo") != "equipe":
+        sql += " AND (l.dono = ? OR a.criado_por = ?)"
+        params += [usuario, usuario]
+    with banco() as conn:
+        linhas = conn.execute(sql + " ORDER BY a.quando, a.id", params).fetchall()
+    atividades = [dict(l) for l in linhas]
+    for a in atividades:
+        a["concluida"] = bool(a["concluida"])
+    raise Resposta(200, {"atividades": atividades})
 
 
 def ler_data(texto_data):
@@ -1774,6 +1814,7 @@ ROTAS = [
     ("POST", r"/api/leads/(\d+)/restaurar", rota_restaurar_lead),
     ("POST", r"/api/leads/(\d+)/transferir", rota_transferir_lead),
     ("GET", r"/api/minhas-atividades", rota_minhas_atividades),
+    ("GET", r"/api/agenda", rota_agenda),
     ("GET", r"/api/decolagem", rota_decolagem),
     ("GET", r"/api/admin", rota_admin),
     ("PUT", r"/api/admin/config", rota_admin_config),

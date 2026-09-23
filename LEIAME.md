@@ -13,7 +13,8 @@ Feito só com Python, sem nenhuma biblioteca para instalar.
   vendidos e comissão dobrada para indicação.
 - **🚀 Decolagem do sucesso:** meta mensal/trimestral (padrão R$ 12.000,00/mês), trilha espacial,
   tripulação com comissões e ranking em tempo real.
-- **Menu (planeta Terra):** Kanban, Meu dia, Carteira, Decolagem, Relatórios, Chat, Participantes,
+- **📅 Agenda Espacial:** atividades em dia, semana ou mês até 2027, com feriados nacionais.
+- **Menu (planeta Terra):** Kanban, Meu dia, Agenda Espacial, Carteira, Decolagem, Relatórios, Chat, Participantes,
   Feedbacks, Ajuda e Administração.
 - O passo a passo de uso para a equipe fica na página **Ajuda**, dentro do sistema.
 

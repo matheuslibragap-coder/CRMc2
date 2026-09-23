@@ -41,6 +41,14 @@ function mostrarErro(elemento, mensagem) {
   elemento.hidden = !mensagem;
 }
 
+// Preferências guardadas no navegador (só conveniência; funciona sem elas)
+function lerLocal(chave) {
+  try { return localStorage.getItem(chave); } catch (e) { return null; }
+}
+function gravarLocal(chave, valor) {
+  try { localStorage.setItem(chave, valor); } catch (e) { /* navegador bloqueou; sem problema */ }
+}
+
 const dois = (n) => String(n).padStart(2, "0");
 
 // "2026-09-23T14:05:00" -> "23/09/2026 14:05"
@@ -334,6 +342,7 @@ function irPara(pagina) {
   if (pagina === "kanban") carregarLeads();
   if (pagina === "carteira") carregarCarteira();
   if (pagina === "decolagem") abrirDecolagem();
+  if (pagina === "agenda") abrirAgenda();
   if (pagina === "admin") abrirAdmin();
   if (pagina === "relatorios") abrirRelatorios();
   if (pagina === "chat") abrirChat();

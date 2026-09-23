@@ -149,14 +149,79 @@ function passaFiltro(lead) {
   if (filtroProduto.value && !lead.produtos.includes(filtroProduto.value)) return false;
   if (filtroOrigem.value && lead.origem !== filtroOrigem.value) return false;
   if (!filtroDono.hidden && filtroDono.value && lead.dono !== filtroDono.value) return false;
-  return true;
+  return passaCor(lead);
 }
 
-const filtrosAtivos = () => filtroBusca.value || filtroProduto.value || filtroOrigem.value || (!filtroDono.hidden && filtroDono.value);
+// Filtro pelas cores das atividades (legenda clicável; pode marcar mais de uma)
+const filtroCores = new Set();
+document.querySelectorAll("#legenda .leg").forEach((botao) => {
+  botao.onclick = () => {
+    const cor = botao.dataset.cor;
+    if (filtroCores.has(cor)) filtroCores.delete(cor);
+    else filtroCores.add(cor);
+    botao.setAttribute("aria-pressed", String(filtroCores.has(cor)));
+    botao.classList.toggle("marcada", filtroCores.has(cor));
+    desenhar();
+  };
+});
+
+function passaCor(lead) {
+  if (!filtroCores.size || ehDescartados()) return true;
+  return filtroCores.has(situacaoLead(lead) || "sem");
+}
+
+const filtrosAtivos = () => filtroBusca.value || filtroProduto.value || filtroOrigem.value
+  || (!filtroDono.hidden && filtroDono.value) || (filtroCores.size && !ehDescartados());
+
+// ---------- ordenação das colunas ----------
+const ORDENS = [
+  ["recentes", "Cadastrados por último"],
+  ["atividades", "Atividades em sequência"],
+  ["alfabetica", "Ordem alfabética"],
+];
+
+function proximaAtividade(lead) {
+  const lista = pendentes(lead);
+  return lista.length ? lista[0].quando : null; // já vêm em ordem de data
+}
+
+function ordenarLeads(lista, modo) {
+  const copia = [...lista];
+  if (modo === "alfabetica") {
+    return copia.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
+  }
+  if (modo === "atividades") {
+    // Atrasadas e mais próximas primeiro; sem atividade no fim
+    return copia.sort((a, b) => {
+      const qa = proximaAtividade(a), qb = proximaAtividade(b);
+      if (qa && qb) return qa.localeCompare(qb);
+      if (qa || qb) return qa ? -1 : 1;
+      return b.id - a.id;
+    });
+  }
+  return copia.sort((a, b) => b.id - a.id); // cadastrados por último
+}
+
+const ordemSalva = (chave) => lerLocal(`ordem-${chave}`) || "recentes";
+
+function seletorOrdem(chave, aoMudar) {
+  const select = el("select", "ordem-coluna");
+  select.title = "Ordenar os cards";
+  select.setAttribute("aria-label", "Ordenar os cards");
+  ORDENS.forEach(([valor, rotulo]) => select.append(new Option(`↕ ${rotulo}`, valor)));
+  select.value = ordemSalva(chave);
+  select.onchange = () => { gravarLocal(`ordem-${chave}`, select.value); aoMudar(); };
+  return select;
+}
 
 [filtroBusca, filtroProduto, filtroOrigem, filtroDono].forEach((c) => c.addEventListener("input", desenhar));
 document.getElementById("btn-limpar-filtros").onclick = () => {
   filtroBusca.value = filtroProduto.value = filtroOrigem.value = filtroDono.value = "";
+  filtroCores.clear();
+  document.querySelectorAll("#legenda .leg").forEach((b) => {
+    b.classList.remove("marcada");
+    b.setAttribute("aria-pressed", "false");
+  });
   desenhar();
 };
 
@@ -260,6 +325,14 @@ function criarCard(lead, mostrarDono = visao !== "meus" && visao !== "meus_desca
     lead.produtos.forEach((p) => tags.append(el("span", `tag p-${estado.config.produtos.indexOf(p)}`, p)));
     card.append(tags);
   }
+  if (lead.link_fattura && /^https?:\/\//i.test(lead.link_fattura)) {
+    const fattura = el("a", "link-fattura", "🧾 Abrir Fattura ↗");
+    fattura.href = lead.link_fattura;
+    fattura.target = "_blank";
+    fattura.rel = "noopener";
+    fattura.title = lead.link_fattura;
+    card.append(fattura);
+  }
   if (lead.origem) {
     const origem = lead.origem + (lead.origem_detalhe ? ` (${lead.origem_detalhe})` : "");
     const linha = el("div", "card-linha card-origem");
@@ -356,10 +429,10 @@ function desenhar() {
     }
     titulo.append(iconeColuna(nomeColuna), el("span", "", nomeExibido));
     topo.append(titulo, el("span", "contador", doColuna.length));
-    coluna.append(topo);
+    coluna.append(topo, seletorOrdem(nomeColuna, desenhar));
 
     const cards = el("div", "cards");
-    doColuna.forEach((l) => cards.append(criarCard(l)));
+    ordenarLeads(doColuna, ordemSalva(nomeColuna)).forEach((l) => cards.append(criarCard(l)));
     coluna.append(cards);
 
     coluna.addEventListener("dragover", (ev) => {
@@ -394,6 +467,12 @@ function desenharDescartados(visiveis) {
 document.getElementById("btn-carteira").onclick = () => irPara("carteira");
 document.getElementById("btn-add-carteira").onclick = () => abrirFormulario(null, estado.config.carteira);
 document.getElementById("busca-carteira").addEventListener("input", desenharCarteira);
+(() => {
+  const select = document.getElementById("ordem-carteira");
+  ORDENS.forEach(([valor, rotulo]) => select.append(new Option(rotulo, valor)));
+  select.value = ordemSalva("Carteira");
+  select.onchange = () => { gravarLocal("ordem-Carteira", select.value); desenharCarteira(); };
+})();
 document.querySelectorAll("#abas-carteira .aba").forEach((aba) => {
   aba.onclick = () => { visaoCarteira = aba.dataset.visao; carregarCarteira(); };
 });
@@ -414,7 +493,7 @@ function desenharCarteira() {
   const lista = document.getElementById("lista-carteira");
   lista.innerHTML = "";
   const busca = document.getElementById("busca-carteira").value;
-  const visiveis = carteiraLeads.filter((l) => combinaBusca(l, busca));
+  const visiveis = ordenarLeads(carteiraLeads.filter((l) => combinaBusca(l, busca)), ordemSalva("Carteira"));
   visiveis.forEach((l) => lista.append(criarCard(l, visaoCarteira === "carteira_geral")));
   if (!visiveis.length) {
     lista.append(el("p", "vazio", busca ? "Ninguém encontrado com essa busca. 🔭" : "Nenhum cliente na carteira ainda. Clique em “+ Adicionar cliente”. 💼"));
@@ -651,6 +730,16 @@ function atualizarCamposCondicionais() {
   document.getElementById("campo-valor").hidden = carteira || form.coluna.value !== PROPOSTA;
 }
 form.origem.addEventListener("change", atualizarCamposCondicionais);
+
+// "abrir ↗" ao lado do campo Link Fattura, quando há um link válido
+function atualizarLinkFattura() {
+  const valor = form.link_fattura.value.trim();
+  const link = document.getElementById("abrir-fattura");
+  const endereco = /^https?:\/\//i.test(valor) ? valor : valor ? "https://" + valor : "";
+  link.hidden = !/^https?:\/\/\S+\.\S+/i.test(endereco);
+  link.href = link.hidden ? "#" : endereco;
+}
+form.link_fattura.addEventListener("input", atualizarLinkFattura);
 form.coluna.addEventListener("change", atualizarCamposCondicionais);
 
 // Quem pode ver/trocar o dono no formulário
@@ -716,6 +805,7 @@ function abrirFormulario(lead, colunaInicial) {
     form.telefone.value = lead.telefone;
     form.email.value = lead.email;
     form.conta.value = lead.conta;
+    form.link_fattura.value = lead.link_fattura || "";
     form.origem.value = lead.origem;
     form.origem_detalhe.value = lead.origem_detalhe;
     form.querySelectorAll('input[name="produtos"]').forEach((c) => (c.checked = lead.produtos.includes(c.value)));
@@ -726,6 +816,7 @@ function abrirFormulario(lead, colunaInicial) {
   }
   prepararCampoDono(lead);
   mostrarCaixaVenda(lead);
+  atualizarLinkFattura();
   document.getElementById("btn-excluir").hidden = !lead || lead.dono !== estado.usuario;
   document.getElementById("btn-descartar").hidden = !lead || lead.descartado;
   document.getElementById("btn-restaurar").hidden = !lead || !lead.descartado;
@@ -762,6 +853,7 @@ function dadosDoFormulario() {
     telefone: form.telefone.value,
     email: form.email.value,
     conta: form.conta.value,
+    link_fattura: form.link_fattura.value,
     origem: form.origem.value,
     origem_detalhe: form.origem_detalhe.value,
     produtos: [...form.querySelectorAll('input[name="produtos"]:checked')].map((c) => c.value),

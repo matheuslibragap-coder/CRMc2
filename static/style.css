@@ -270,6 +270,7 @@ button { font-family: inherit; }
 .aba.ativa { color: var(--texto); background: var(--amarelo); border-color: var(--contorno); }
 .legenda { display: flex; gap: 8px; flex-wrap: wrap; }
 .leg {
+  font: inherit;
   font-size: 13px;
   font-weight: 500;
   color: #fff;
@@ -277,7 +278,17 @@ button { font-family: inherit; }
   border-radius: 999px;
   background: rgba(26, 16, 51, .6);
   border: 3px solid;
+  cursor: pointer;
+  transition: transform .1s;
 }
+.leg:hover { transform: translateY(-1px); }
+.leg.marcada { color: var(--texto); font-weight: 700; box-shadow: 2px 2px 0 var(--contorno); }
+.leg.marcada::before { content: "✓ "; }
+.leg-atrasada.marcada { background: var(--atrasada); }
+.leg-hoje.marcada { background: var(--hoje); }
+.leg-futura.marcada { background: var(--futura); }
+.leg-sem { border-color: #e5dbff; border-style: dashed; }
+.leg-sem.marcada { background: #e5dbff; border-style: solid; }
 .leg-atrasada { border-color: var(--atrasada); }
 .leg-hoje { border-color: var(--hoje); }
 .leg-futura { border-color: var(--futura); }
@@ -1089,3 +1100,138 @@ a.btn { display: inline-block; text-decoration: none; }
   .trilha-numero { font-size: 28px; }
 }
 #decolagem-conteudo .item-escolha { width: 100%; margin-top: 6px; }
+
+/* ---------- ordenação e Link Fattura ---------- */
+.ordem-coluna {
+  display: block;
+  width: 100%;
+  margin: -4px 0 10px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(26, 16, 51, .55);
+  border: 2px solid rgba(229, 219, 255, .5);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.ordem-coluna option { color: var(--texto); background: #fff; }
+.linha-busca { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.linha-busca input { flex: 1 1 260px; margin: 0; }
+.rotulo-ordem { margin: 0; display: flex; align-items: center; gap: 6px; }
+.rotulo-ordem select { width: auto; margin: 0; }
+.link-fattura {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--texto);
+  text-decoration: none;
+  padding: 1px 10px;
+  background: #e7f5ff;
+  border: 2px solid var(--contorno);
+  border-radius: 999px;
+}
+.link-fattura:hover { background: #d0ebff; }
+.link-abrir { font-weight: 600; color: var(--roxo); margin-left: 6px; }
+
+/* ---------- Agenda Espacial ---------- */
+.agenda-topo { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.agenda-topo h2 { margin: 0; }
+.agenda-controles { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.agenda-controles .btn-redondo { width: 34px; height: 34px; font-size: 18px; }
+.agenda-controles .btn-redondo:disabled { opacity: .35; cursor: default; }
+#agenda-titulo { font-size: 18px; min-width: 200px; }
+.agenda-legenda { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.ag-leg { font-size: 12px; font-weight: 600; padding: 1px 10px; border: 2px solid var(--contorno); border-radius: 999px; }
+.dia-feriado-leg { background: #ffe8cc; }
+.dia-fds-leg { background: #e5dbff; }
+
+.ev-atrasada { --ev: #ffc9c9; --ev-borda: var(--atrasada); }
+.ev-hoje { --ev: #d0ebff; --ev-borda: var(--hoje); }
+.ev-futura { --ev: #fff3bf; --ev-borda: var(--futura); }
+.ev-concluida { --ev: #e9ecef; --ev-borda: #868e96; }
+.ag-leg.ev-atrasada, .ag-leg.ev-hoje, .ag-leg.ev-futura, .ag-leg.ev-concluida { background: var(--ev); border-left: 6px solid var(--ev-borda); }
+
+.evento {
+  display: block;
+  width: 100%;
+  margin-top: 3px;
+  padding: 1px 6px;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--texto);
+  background: var(--ev);
+  border: 1.5px solid var(--contorno);
+  border-left: 5px solid var(--ev-borda);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.evento:hover { filter: brightness(.95); }
+.ev-concluida span { text-decoration: line-through; }
+
+.agenda-mes {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border: 3px solid var(--contorno);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+}
+.agenda-cab { padding: 6px; text-align: center; font-weight: 700; font-size: 13px; background: #2e2170; color: #fff; border-bottom: 2px solid var(--contorno); }
+.agenda-cab.cab-fds { color: #ffd43b; }
+.agenda-dia { min-height: 118px; padding: 4px; border-right: 1.5px solid #e0d8f0; border-bottom: 1.5px solid #e0d8f0; min-width: 0; cursor: default; }
+.agenda-dia:nth-child(7n) { border-right: none; }
+.dia-fds { background: #f3f0ff; }
+.dia-feriado { background: #fff4e6; }
+.fora-do-mes { opacity: .45; }
+.dia-numero {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 2px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.dia-numero:hover { background: #e5dbff; }
+.dia-hoje .dia-numero { background: var(--roxo); color: #fff; box-shadow: 0 0 0 3px #ffd43b; }
+.feriado-nome { font-size: 11px; font-weight: 600; color: #d9480f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ver-mais { font: inherit; font-size: 12px; font-weight: 600; color: var(--roxo); background: none; border: none; cursor: pointer; padding: 2px 4px; }
+
+.agenda-horas-cab { display: grid; border: 3px solid var(--contorno); border-bottom: none; border-radius: 16px 16px 0 0; overflow: hidden; background: #2e2170; }
+.cab-dia { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 2px; font: inherit; color: #fff; background: #2e2170; border: none; border-left: 1.5px solid #4c3a9e; cursor: pointer; min-width: 0; }
+.cab-dia b { font-size: 20px; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; }
+.cab-dia.dia-fds { background: #3b2a8a; color: #ffd43b; }
+.cab-dia.dia-feriado { background: #6b3b1f; }
+.cab-dia.dia-hoje b { background: #ffd43b; color: var(--texto); }
+.cab-dia .feriado-nome { color: #ffc078; max-width: 100%; }
+.agenda-grade-horas { max-height: 62vh; overflow-y: auto; border: 3px solid var(--contorno); border-top: 2px solid var(--contorno); border-radius: 0 0 16px 16px; background: #fff; }
+.agenda-horas { display: grid; position: relative; }
+.coluna-horas { border-right: 1.5px solid #e0d8f0; }
+.rotulo-hora { height: 48px; font-size: 11px; color: var(--texto-suave); text-align: right; padding-right: 6px; transform: translateY(-7px); }
+.coluna-dia {
+  position: relative;
+  border-left: 1.5px solid #e0d8f0;
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 47px, #eee7fa 47px, #eee7fa 48px);
+}
+.coluna-dia.dia-fds { background-color: #f3f0ff; }
+.coluna-dia.dia-feriado { background-color: #fff4e6; }
+.evento-hora { position: absolute; margin: 0 2px; z-index: 1; }
+.linha-agora { position: absolute; left: 0; right: 0; height: 2px; background: var(--atrasada); z-index: 2; }
+.linha-agora::before { content: ""; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--atrasada); }
+
+@media (max-width: 700px) {
+  .agenda-dia { min-height: 76px; }
+  .agenda-dia .evento span { display: none; }
+  .feriado-nome { font-size: 9px; }
+}

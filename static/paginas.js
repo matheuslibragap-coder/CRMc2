@@ -299,13 +299,6 @@ async function abrirAjuda() {
   }
 }
 
-// ---------- utilidades de armazenamento local (só conveniência) ----------
-function lerLocal(chave) {
-  try { return localStorage.getItem(chave); } catch (e) { return null; }
-}
-function gravarLocal(chave, valor) {
-  try { localStorage.setItem(chave, valor); } catch (e) { /* navegador bloqueou; sem problema */ }
-}
 
 // ---------- Meu dia ----------
 const modalMeuDia = document.getElementById("modal-meu-dia");

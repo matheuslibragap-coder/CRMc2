@@ -93,6 +93,7 @@
       <nav>
         <button class="menu-item" data-pagina="kanban">🗂️ Kanban</button>
         <button class="menu-item" id="menu-meu-dia">☀️ Meu dia</button>
+        <button class="menu-item" data-pagina="agenda">📅 Agenda Espacial</button>
         <button class="menu-item" data-pagina="carteira">💼 Carteira</button>
         <button class="menu-item" data-pagina="decolagem">🚀 Decolagem do sucesso</button>
         <button class="menu-item" data-pagina="relatorios">📊 Relatórios</button>
@@ -117,10 +118,11 @@
           <button class="aba" data-visao="meus_descartados">Meus descartados</button>
           <button class="aba" data-visao="descartados">Descartados geral</button>
         </nav>
-        <div class="legenda" id="legenda">
-          <span class="leg leg-atrasada">Atividade atrasada</span>
-          <span class="leg leg-hoje">Atividade hoje</span>
-          <span class="leg leg-futura">Atividade futura</span>
+        <div class="legenda" id="legenda" role="group" aria-label="Mostrar só leads com estas cores">
+          <button type="button" class="leg leg-atrasada" data-cor="atrasada" aria-pressed="false">Atividade atrasada</button>
+          <button type="button" class="leg leg-hoje" data-cor="hoje" aria-pressed="false">Atividade hoje</button>
+          <button type="button" class="leg leg-futura" data-cor="futura" aria-pressed="false">Atividade futura</button>
+          <button type="button" class="leg leg-sem" data-cor="sem" aria-pressed="false">Sem cor - contatos sem atividade</button>
         </div>
       </div>
       <div class="filtros-kanban">
@@ -149,9 +151,49 @@
         </div>
         <p class="dica">Clientes que você acompanha como gerente de contas. Eles ficam fora do funil: não passam pelas etapas do Kanban.
           Atividades, anotações e descarte funcionam igual aos leads.</p>
-        <input type="search" id="busca-carteira" placeholder="🔎 Buscar na carteira…">
+        <div class="linha-busca">
+          <input type="search" id="busca-carteira" placeholder="🔎 Buscar na carteira…">
+          <label class="rotulo-ordem">Ordenar
+            <select id="ordem-carteira"></select>
+          </label>
+        </div>
       </div>
       <div id="lista-carteira" class="grade-cards"></div>
+    </section>
+
+    <!-- ---------- Página: Agenda Espacial ---------- -->
+    <section id="pagina-agenda" class="pagina pagina-conteudo pagina-larga" hidden>
+      <div class="painel agenda">
+        <div class="agenda-topo">
+          <h2>📅 Agenda Espacial</h2>
+          <div class="agenda-controles">
+            <button type="button" id="agenda-hoje" class="btn btn-pequeno">Hoje</button>
+            <button type="button" class="btn-redondo" id="agenda-anterior" aria-label="Anterior">‹</button>
+            <button type="button" class="btn-redondo" id="agenda-seguinte" aria-label="Próximo">›</button>
+            <b id="agenda-titulo"></b>
+          </div>
+          <div class="agenda-controles">
+            <nav class="abas abas-claras" id="agenda-escopo">
+              <button class="aba ativa" data-escopo="minha">Minha agenda</button>
+              <button class="aba" data-escopo="equipe">Equipe</button>
+            </nav>
+            <nav class="abas abas-claras" id="agenda-modos">
+              <button class="aba" data-modo="dia">Dia</button>
+              <button class="aba" data-modo="semana">Semana</button>
+              <button class="aba ativa" data-modo="mes">Mês</button>
+            </nav>
+          </div>
+        </div>
+        <div class="agenda-legenda">
+          <span class="ag-leg ev-atrasada">Atrasada</span>
+          <span class="ag-leg ev-hoje">Hoje</span>
+          <span class="ag-leg ev-futura">Futura</span>
+          <span class="ag-leg ev-concluida">Concluída</span>
+          <span class="ag-leg dia-feriado-leg">Feriado</span>
+          <span class="ag-leg dia-fds-leg">Sábado e domingo</span>
+        </div>
+        <div id="agenda-corpo"></div>
+      </div>
     </section>
 
     <!-- ---------- Página: Decolagem do sucesso ---------- -->
@@ -337,6 +379,9 @@
           </div>
           <label>Conta
             <input type="text" name="conta" maxlength="200">
+          </label>
+          <label>Link Fattura <a id="abrir-fattura" class="link-abrir" target="_blank" rel="noopener" hidden>abrir ↗</a>
+            <input type="text" name="link_fattura" inputmode="url" maxlength="500" placeholder="https://...">
           </label>
           <div class="linha-dupla">
             <label>Origem <span class="obrig-funil">*</span>
@@ -623,5 +668,6 @@
   <script src="kanban.js"></script>
   <script src="chat.js"></script>
   <script src="paginas.js"></script>
+  <script src="agenda.js"></script>
 </body>
 </html>
