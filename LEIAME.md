@@ -53,8 +53,8 @@ cd ~/master && python3 definir_senhas.py Nico
 ```
 
 ### 5. Manter ativo
-No plano grátis, entre no PythonAnywhere **pelo menos 1 vez a cada 3 meses**,
-vá na aba **Web** e clique em **Run until 3 months from today**. O site recebe um e-mail de aviso antes de expirar.
+No plano grátis, entre no PythonAnywhere **pelo menos 1 vez por mês**,
+vá na aba **Web** e clique em **Run until 1 month from today**. O PythonAnywhere manda um e-mail uma semana antes de o site sair do ar.
 
 ### Atualizar o MASTER depois de mudanças
 No console **Bash**:
