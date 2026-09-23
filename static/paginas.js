@@ -336,9 +336,12 @@ async function abrirMeuDia(automatico = false) {
       const hora = a.quando.slice(0, 10) === hojeISO() ? a.quando.slice(11, 16) : formatarDataHora(a.quando);
       item.append(el("b", "", hora));
       const meio = el("div");
-      meio.append(el("span", "", a.descricao), el("small", "", `${a.nome}${a.conta ? " / " + a.conta : ""}${a.dono !== estado.usuario ? " · de " + a.dono : ""}`));
+      const origem = a.lead_id
+        ? `${a.nome}${a.conta ? " / " + a.conta : ""}${a.dono !== estado.usuario ? " · de " + a.dono : ""}`
+        : "🧑‍🚀 Atividade pessoal";
+      meio.append(el("span", "", a.descricao), el("small", "", origem));
       item.append(meio, el("span", "meu-dia-abrir", "Abrir →"));
-      item.onclick = () => { modalMeuDia.close(); abrirLeadPorId(a.lead_id); };
+      item.onclick = () => { modalMeuDia.close(); abrirAtividadeOuLead(a); };
       bloco.append(item);
     });
     if (!lista.length) bloco.append(el("p", "vazio-pequeno", "Nada por aqui. ✨"));
@@ -402,12 +405,12 @@ async function verificarLembretes() {
 
 function mostrarLembrete(a, minutos) {
   const titulo = minutos ? `⏰ Em ${minutos} min` : "⏰ Agora";
-  const texto = `${a.descricao} · ${a.nome}${a.conta ? " / " + a.conta : ""}`;
+  const texto = a.lead_id ? `${a.descricao} · ${a.nome}${a.conta ? " / " + a.conta : ""}` : `${a.descricao} · pessoal`;
   const cartao = el("div", "lembrete");
   const fechar = el("button", "btn-x", "✕");
   fechar.onclick = () => cartao.remove();
-  const abrir = el("button", "btn btn-pequeno btn-primario", "Abrir lead");
-  abrir.onclick = () => { cartao.remove(); abrirLeadPorId(a.lead_id); };
+  const abrir = el("button", "btn btn-pequeno btn-primario", a.lead_id ? "Abrir lead" : "Abrir");
+  abrir.onclick = () => { cartao.remove(); abrirAtividadeOuLead(a); };
   const corpo = el("div");
   corpo.append(el("b", "", `${titulo} (${a.quando.slice(11, 16)})`), el("span", "", texto), abrir);
   cartao.append(corpo, fechar);
@@ -739,3 +742,9 @@ formNovoUsuario.addEventListener("submit", async (ev) => {
     mostrarSenhaGerada(r.nome, r.senha);
   } catch (e) { mostrarErro(erroAdmin, e.message); }
 });
+
+// Atividade de lead abre o lead; atividade pessoal abre a janela da Agenda
+function abrirAtividadeOuLead(a) {
+  if (a.lead_id) return abrirLeadPorId(a.lead_id);
+  abrirAtividadeAgenda({ ...a, concluida: false });
+}

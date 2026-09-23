@@ -1063,6 +1063,7 @@ function linhaAtividade(atv, acoes) {
   info.append(el("b", "", quando), el("span", "", atv.descricao));
   const rotulo = { atrasada: "Atrasada", hoje: "Hoje", futura: "Futura" }[s];
   info.append(el("small", `selo selo-${s}`, rotulo));
+  if (atv.detalhes) info.append(el("small", "atividade-detalhes", atv.detalhes));
   if (atv.google_link) {
     const g = el("a", "selo-google", "📅 No Google");
     g.href = atv.google_link;

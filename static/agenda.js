@@ -169,16 +169,17 @@ function situacaoEvento(a) {
 }
 
 function textoEvento(a) {
+  if (!a.lead_id) return `🧑‍🚀 ${a.descricao}`; // atividade pessoal
   const titulo = a.conta ? `${a.nome}/${a.conta}` : a.nome;
   return agenda.escopo === "equipe" && a.dono !== estado.usuario ? `${titulo} · ${a.dono}` : titulo;
 }
 
 function eventoBotao(a, classe = "") {
-  const b = el("button", `evento ev-${situacaoEvento(a)} ${classe}`);
+  const b = el("button", `evento ev-${situacaoEvento(a)} ${a.lead_id ? "" : "ev-pessoal"} ${classe}`);
   b.type = "button";
-  b.title = `${a.quando.slice(11, 16)} · ${a.descricao}\n${textoEvento(a)}${a.concluida ? "\n✅ Concluída" : ""}`;
+  b.title = `${a.quando.slice(11, 16)} · ${a.descricao}${a.lead_id ? "\n" + textoEvento(a) : " (pessoal)"}${a.concluida ? "\n✅ Concluída" : ""}`;
   b.append(el("b", "", a.quando.slice(11, 16)), el("span", "", ` ${textoEvento(a)}`));
-  b.onclick = (ev) => { ev.stopPropagation(); abrirLeadPorId(a.lead_id); };
+  b.onclick = (ev) => { ev.stopPropagation(); abrirAtividadeAgenda(a); };
   return b;
 }
 
@@ -210,7 +211,11 @@ function desenharMes() {
       mais.onclick = () => trocarModoAgenda("dia", d);
       celula.append(mais);
     }
-    celula.ondblclick = () => trocarModoAgenda("dia", d);
+    celula.title = "Clique para criar uma atividade neste dia";
+    celula.onclick = (ev) => {
+      if (ev.target.closest("button")) return;
+      novaAtividadeAgenda(d, horaSugerida(d));
+    };
     grade.append(celula);
   }
   corpoAgenda.append(grade);
@@ -269,6 +274,28 @@ function desenharHoras(dias) {
       b.style.width = `calc(${100 / a._faixas}% - 4px)`;
       coluna.append(b);
     });
+    // Clique num horário vazio = nova atividade naquele horário (de 30 em 30 minutos)
+    const fantasma = el("div", "slot-fantasma");
+    fantasma.hidden = true;
+    coluna.append(fantasma);
+    const horarioDoClique = (ev) => {
+      const y = ev.clientY - coluna.getBoundingClientRect().top;
+      const meiasHoras = Math.max(0, Math.min(47, Math.floor(y / (ALTURA_HORA / 2))));
+      return { hora: `${dois(Math.floor(meiasHoras / 2))}:${meiasHoras % 2 ? "30" : "00"}`, top: meiasHoras * (ALTURA_HORA / 2) };
+    };
+    coluna.addEventListener("mousemove", (ev) => {
+      if (ev.target.closest(".evento")) { fantasma.hidden = true; return; }
+      const { hora, top } = horarioDoClique(ev);
+      fantasma.style.top = `${top}px`;
+      fantasma.style.height = `${ALTURA_HORA / 2}px`;
+      fantasma.textContent = `+ ${hora}`;
+      fantasma.hidden = false;
+    });
+    coluna.addEventListener("mouseleave", () => (fantasma.hidden = true));
+    coluna.addEventListener("click", (ev) => {
+      if (ev.target.closest(".evento")) return;
+      novaAtividadeAgenda(d, horarioDoClique(ev).hora);
+    });
     if (isoDia(d) === hojeISO()) {
       const linha = el("div", "linha-agora");
       linha.style.top = `${((agora.getHours() * 60 + agora.getMinutes()) / 60) * ALTURA_HORA}px`;
@@ -282,3 +309,146 @@ function desenharHoras(dias) {
     corpoAgenda.append(el("p", "vazio-pequeno", "Nenhuma atividade neste período. Crie atividades dentro dos leads e elas aparecem aqui. 🛰️"));
   }
 }
+
+// ---------- janela da atividade (criar / editar) ----------
+const modalAtividade = document.getElementById("modal-atividade");
+const formAtividade = document.getElementById("form-atividade");
+const erroAtividade = document.getElementById("atividade-erro");
+const seletorLead = document.getElementById("atividade-lead");
+const buscaLeadAtividade = document.getElementById("atividade-busca-lead");
+let atividadeAberta = null; // null = nova
+let leadsParaAgenda = [];
+mascaraData(formAtividade.data);
+mascaraHora(formAtividade.hora);
+
+function horaSugerida(d) {
+  if (isoDia(d) !== hojeISO()) return "09:00";
+  const proxima = Math.min(23, new Date().getHours() + 1);
+  return `${dois(proxima)}:00`;
+}
+
+async function carregarLeadsParaAgenda() {
+  const visoes = estado.coordenador ? ["geral", "carteira_geral"] : ["meus", "carteira"];
+  try {
+    const listas = await Promise.all(visoes.map((v) => api("GET", `/api/leads?visao=${v}`)));
+    leadsParaAgenda = listas.flatMap((l) => l.leads)
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
+  } catch (e) {
+    leadsParaAgenda = [];
+  }
+}
+
+function desenharOpcoesLead(selecionado) {
+  const busca = semAcento(buscaLeadAtividade.value.trim());
+  seletorLead.innerHTML = "";
+  seletorLead.append(new Option("— Nenhum (atividade pessoal) —", ""));
+  leadsParaAgenda
+    .filter((l) => String(l.id) === String(selecionado) || !busca
+      || semAcento(`${l.nome} ${l.conta} ${l.dono}`).includes(busca))
+    .forEach((l) => {
+      let rotulo = l.nome + (l.conta ? ` / ${l.conta}` : "");
+      if (estado.coordenador || l.dono !== estado.usuario) rotulo += ` · ${l.dono}`;
+      if (ehCarteira(l)) rotulo += " · Carteira";
+      seletorLead.append(new Option(rotulo, l.id));
+    });
+  seletorLead.value = selecionado ? String(selecionado) : "";
+}
+buscaLeadAtividade.addEventListener("input", () => desenharOpcoesLead(seletorLead.value));
+
+async function prepararJanelaAtividade(leadSelecionado) {
+  formAtividade.reset();
+  buscaLeadAtividade.value = "";
+  mostrarErro(erroAtividade, "");
+  await carregarLeadsParaAgenda();
+  // Lead de outra pessoa (visão Equipe) que não está na lista
+  if (leadSelecionado && !leadsParaAgenda.some((l) => l.id === leadSelecionado.id)) {
+    leadsParaAgenda.unshift(leadSelecionado);
+  }
+  desenharOpcoesLead(leadSelecionado ? leadSelecionado.id : "");
+}
+
+async function novaAtividadeAgenda(dia, hora) {
+  atividadeAberta = null;
+  await prepararJanelaAtividade(null);
+  document.getElementById("atividade-titulo-janela").textContent = "🚀 Nova atividade";
+  document.getElementById("atividade-situacao").hidden = true;
+  ["btn-atividade-excluir", "btn-atividade-concluir", "btn-atividade-lead"].forEach((id) => (document.getElementById(id).hidden = true));
+  formAtividade.data.value = formatarData(isoDia(dia));
+  formAtividade.hora.value = hora;
+  modalAtividade.showModal();
+  formAtividade.descricao.focus();
+}
+
+async function abrirAtividadeAgenda(a) {
+  atividadeAberta = a;
+  const lead = a.lead_id ? { id: a.lead_id, nome: a.nome, conta: a.conta || "", dono: a.dono, coluna: a.coluna || "" } : null;
+  await prepararJanelaAtividade(lead);
+  document.getElementById("atividade-titulo-janela").textContent = a.lead_id ? "📇 Atividade do lead" : "🧑‍🚀 Atividade pessoal";
+  formAtividade.descricao.value = a.descricao;
+  formAtividade.detalhes.value = a.detalhes || "";
+  formAtividade.data.value = formatarData(a.quando);
+  formAtividade.hora.value = a.quando.slice(11, 16);
+  const situacao = document.getElementById("atividade-situacao");
+  const partes = [];
+  if (a.concluida) partes.push(`✅ Concluída em ${formatarDataHora(a.concluida_em)}${a.concluida_por ? " por " + a.concluida_por : ""}`);
+  else partes.push({ atrasada: "🔴 Atrasada", hoje: "🔵 Para hoje", futura: "🟡 Futura" }[situacaoAtividade(a)]);
+  if (a.criado_por && a.criado_por !== estado.usuario) partes.push(`criada por ${a.criado_por}`);
+  situacao.textContent = partes.join(" · ");
+  situacao.hidden = false;
+  document.getElementById("btn-atividade-excluir").hidden = false;
+  const concluir = document.getElementById("btn-atividade-concluir");
+  concluir.hidden = false;
+  concluir.textContent = a.concluida ? "↩ Reabrir" : "✓ Concluir";
+  document.getElementById("btn-atividade-lead").hidden = !a.lead_id;
+  if (!modalAtividade.open) modalAtividade.showModal();
+}
+
+function fecharJanelaAtividade() {
+  modalAtividade.close();
+  if (estado.pagina === "agenda") carregarAgenda(false);
+}
+document.getElementById("btn-atividade-fechar").onclick = () => modalAtividade.close();
+
+formAtividade.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  mostrarErro(erroAtividade, "");
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(formAtividade.data.value)) return mostrarErro(erroAtividade, "Data no formato DD/MM/AAAA.");
+  if (!/^\d{2}:\d{2}$/.test(formAtividade.hora.value)) return mostrarErro(erroAtividade, "Hora no formato HH:MM.");
+  const dados = {
+    descricao: formAtividade.descricao.value,
+    detalhes: formAtividade.detalhes.value,
+    data: formAtividade.data.value,
+    hora: formAtividade.hora.value,
+    lead_id: seletorLead.value ? Number(seletorLead.value) : null,
+  };
+  try {
+    if (atividadeAberta) await api("PUT", `/api/atividades/${atividadeAberta.id}`, dados);
+    else await api("POST", "/api/atividades", dados);
+    fecharJanelaAtividade();
+  } catch (e) {
+    mostrarErro(erroAtividade, e.message);
+  }
+});
+
+document.getElementById("btn-atividade-concluir").onclick = async () => {
+  if (!atividadeAberta) return;
+  const rota = atividadeAberta.concluida ? "reabrir" : "concluir";
+  try {
+    await api("POST", `/api/atividades/${atividadeAberta.id}/${rota}?de=agenda`);
+    fecharJanelaAtividade();
+  } catch (e) { mostrarErro(erroAtividade, e.message); }
+};
+
+document.getElementById("btn-atividade-excluir").onclick = async () => {
+  if (!atividadeAberta || !confirm(`Excluir a atividade "${atividadeAberta.descricao}"?`)) return;
+  try {
+    await api("DELETE", `/api/atividades/${atividadeAberta.id}?de=agenda`);
+    fecharJanelaAtividade();
+  } catch (e) { mostrarErro(erroAtividade, e.message); }
+};
+
+document.getElementById("btn-atividade-lead").onclick = () => {
+  const id = atividadeAberta && atividadeAberta.lead_id;
+  modalAtividade.close();
+  if (id) abrirLeadPorId(id);
+};

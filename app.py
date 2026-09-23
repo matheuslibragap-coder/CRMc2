@@ -77,7 +77,7 @@ MAX_TENTATIVAS = 5
 BLOQUEIO_SEGUNDOS = 15 * 60
 _tentativas = {}  # usuario -> (quantidade de erros, horário do último erro)
 
-VERSAO_BANCO = 7
+VERSAO_BANCO = 8
 
 
 def agora():
@@ -359,6 +359,41 @@ def migrar_v7(conn):
         conn.execute("ALTER TABLE leads ADD COLUMN link_fattura TEXT NOT NULL DEFAULT ''")
 
 
+def migrar_v8(conn):
+    """Atividades sem lead (pessoais, criadas na Agenda) e campo de descrição (detalhes)."""
+    colunas = colunas_da_tabela(conn, "atividades")
+    if "detalhes" in colunas:
+        return
+    conn.executescript(
+        """
+        CREATE TABLE atividades_nova (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            lead_id          INTEGER REFERENCES leads(id) ON DELETE CASCADE,  -- vazio = pessoal
+            descricao        TEXT NOT NULL,                  -- título da atividade
+            detalhes         TEXT NOT NULL DEFAULT '',       -- descrição (opcional)
+            quando           TEXT NOT NULL,
+            concluida        INTEGER NOT NULL DEFAULT 0,
+            concluida_em     TEXT NOT NULL DEFAULT '',
+            concluida_por    TEXT NOT NULL DEFAULT '',
+            criado_por       TEXT NOT NULL,
+            criado_em        TEXT NOT NULL,
+            google_evento_id TEXT NOT NULL DEFAULT '',
+            google_usuario   TEXT NOT NULL DEFAULT '',
+            google_link      TEXT NOT NULL DEFAULT '',
+            google_erro      TEXT NOT NULL DEFAULT ''
+        );
+        INSERT INTO atividades_nova (id, lead_id, descricao, quando, concluida, concluida_em,
+            concluida_por, criado_por, criado_em, google_evento_id, google_usuario, google_link, google_erro)
+        SELECT id, lead_id, descricao, quando, concluida, concluida_em, concluida_por, criado_por,
+            criado_em, google_evento_id, google_usuario, google_link, google_erro FROM atividades;
+        DROP TABLE atividades;
+        ALTER TABLE atividades_nova RENAME TO atividades;
+        CREATE INDEX IF NOT EXISTS idx_atividades_lead ON atividades(lead_id);
+        CREATE INDEX IF NOT EXISTS idx_atividades_quando ON atividades(quando);
+        """
+    )
+
+
 def criar_banco():
     """Cria a pasta, o banco e os usuários na primeira execução."""
     PASTA_DADOS.mkdir(exist_ok=True)
@@ -395,6 +430,8 @@ def criar_banco():
                              (papel, na_meta, cor, nome))
         if versao < 7:
             migrar_v7(conn)
+        if versao < 8:
+            migrar_v8(conn)
         conn.execute(f"PRAGMA user_version = {VERSAO_BANCO}")
         # Conversa geral "Comercial 2" com todos os usuários
         conn.execute(
@@ -889,7 +926,7 @@ def leads_completos(conn, where="", params=()):
             "concluida": bool(a["concluida"]), "concluida_em": a["concluida_em"],
             "concluida_por": a["concluida_por"], "criado_por": a["criado_por"],
             "google_link": a["google_link"], "google_erro": a["google_erro"],
-            "google_usuario": a["google_usuario"],
+            "google_usuario": a["google_usuario"], "detalhes": a["detalhes"],
         })
     for h in conn.execute(f"SELECT * FROM historico WHERE lead_id IN ({marcas}) "
                           "ORDER BY criado_em, id", ids):
@@ -1015,9 +1052,9 @@ def procurar_duplicados(conn, lead, ignorar_id=None):
     return achados
 
 
-def ler_atividade(dados):
-    """Valida descrição, data (DD/MM/AAAA) e hora (HH:MM)."""
-    descricao = texto(dados, "descricao", True, "a descrição da atividade", 500)
+def ler_atividade(dados, nome_campo="a descrição da atividade"):
+    """Valida descrição/título, data (DD/MM/AAAA) e hora (HH:MM)."""
+    descricao = texto(dados, "descricao", True, nome_campo, 500)
     data, hora = texto(dados, "data"), texto(dados, "hora")
     try:
         quando = datetime.strptime(f"{data} {hora}", "%d/%m/%Y %H:%M")
@@ -1206,13 +1243,14 @@ def rota_minhas_atividades(req):
     Vendedor: dos leads dele e as que ele criou. Coordenador: de toda a equipe.
     """
     usuario = exigir_login(req)
-    sql = ("SELECT a.id, a.descricao, a.quando, a.criado_por, l.id AS lead_id, l.nome, l.conta, "
-           "l.dono FROM atividades a JOIN leads l ON l.id = a.lead_id "
-           "WHERE a.concluida = 0 AND l.descartado = 0")
-    params = ()
+    sql = ("SELECT a.id, a.descricao, a.detalhes, a.quando, a.criado_por, l.id AS lead_id, l.nome, "
+           "l.conta, l.dono FROM atividades a LEFT JOIN leads l ON l.id = a.lead_id "
+           "WHERE a.concluida = 0 AND (l.id IS NULL AND a.criado_por = ? OR l.descartado = 0")
+    params = [usuario]
     if not eh_coordenador(usuario):
         sql += " AND (l.dono = ? OR a.criado_por = ?)"
-        params = (usuario, usuario)
+        params += [usuario, usuario]
+    sql += ")"
     with banco() as conn:
         linhas = conn.execute(sql + " ORDER BY a.quando", params).fetchall()
     raise Resposta(200, {"atividades": [dict(l) for l in linhas]})
@@ -1225,14 +1263,17 @@ def rota_agenda(req):
     """
     usuario = exigir_login(req)
     inicio, fim = ler_data(req.parametro("inicio")), ler_data(req.parametro("fim"))
-    sql = ("SELECT a.id, a.descricao, a.quando, a.concluida, a.concluida_em, a.criado_por, "
-           "a.google_link, l.id AS lead_id, l.nome, l.conta, l.dono, l.coluna "
-           "FROM atividades a JOIN leads l ON l.id = a.lead_id "
-           "WHERE l.descartado = 0 AND a.quando >= ? AND a.quando <= ?")
-    params = [inicio.isoformat(), fim.isoformat() + "T23:59"]
+    # Atividades pessoais (sem lead) só aparecem para quem criou
+    sql = ("SELECT a.id, a.descricao, a.detalhes, a.quando, a.concluida, a.concluida_em, a.concluida_por, "
+           "a.criado_por, a.google_link, l.id AS lead_id, l.nome, l.conta, l.dono, l.coluna "
+           "FROM atividades a LEFT JOIN leads l ON l.id = a.lead_id "
+           "WHERE a.quando >= ? AND a.quando <= ? "
+           "AND (l.id IS NULL AND a.criado_por = ? OR l.descartado = 0")
+    params = [inicio.isoformat(), fim.isoformat() + "T23:59", usuario]
     if req.parametro("escopo") != "equipe":
         sql += " AND (l.dono = ? OR a.criado_por = ?)"
         params += [usuario, usuario]
+    sql += ")"
     with banco() as conn:
         linhas = conn.execute(sql + " ORDER BY a.quando, a.id", params).fetchall()
     atividades = [dict(l) for l in linhas]
@@ -1313,62 +1354,128 @@ def rota_excluir_anotacao(req, anotacao_id):
 
 def rota_criar_atividade(req, lead_id):
     usuario = exigir_login(req)
-    descricao, quando = ler_atividade(req.json())
+    dados = req.json()
+    descricao, quando = ler_atividade(dados)
+    detalhes = texto(dados, "detalhes", limite=MAX_TEXTO)
     with banco() as conn:
         lead_por_id(conn, lead_id)
         atividade_id = conn.execute(
-            "INSERT INTO atividades (lead_id, descricao, quando, criado_por, criado_em) "
-            "VALUES (?, ?, ?, ?, ?)", (lead_id, descricao, quando, usuario, agora())).lastrowid
+            "INSERT INTO atividades (lead_id, descricao, detalhes, quando, criado_por, criado_em) "
+            "VALUES (?, ?, ?, ?, ?, ?)", (lead_id, descricao, detalhes, quando, usuario, agora())).lastrowid
     sincronizar_atividade(atividade_id)
     with banco() as conn:
         raise Resposta(201, lead_por_id(conn, lead_id))
 
 
-def atividade_por_id(conn, atividade_id):
+def atividade_por_id(conn, atividade_id, usuario=None):
     linha = conn.execute("SELECT * FROM atividades WHERE id = ?", (atividade_id,)).fetchone()
-    if not linha:
+    # Atividade pessoal (sem lead) é só de quem criou
+    if not linha or (usuario and linha["lead_id"] is None and linha["criado_por"] != usuario):
         raise erro(404, "Atividade não encontrada.")
     return linha
 
 
-def rota_editar_atividade(req, atividade_id):
-    exigir_login(req)
-    descricao, quando = ler_atividade(req.json())
+def atividade_para_dict(conn, atividade_id):
+    linha = conn.execute(
+        "SELECT a.*, l.nome, l.conta, l.dono FROM atividades a LEFT JOIN leads l ON l.id = a.lead_id "
+        "WHERE a.id = ?", (atividade_id,)).fetchone()
+    dados = {k: linha[k] for k in ("id", "lead_id", "descricao", "detalhes", "quando", "concluida_em",
+                                   "concluida_por", "criado_por", "google_link", "google_erro",
+                                   "nome", "conta", "dono")}
+    dados["concluida"] = bool(linha["concluida"])
+    return dados
+
+
+def responder_atividade(conn, status, atividade_id, lead_id):
+    """Quem veio da janela do lead recebe o lead atualizado; a Agenda recebe a atividade."""
+    if lead_id is not None:
+        raise Resposta(status, lead_por_id(conn, lead_id))
+    raise Resposta(status, {"atividade": atividade_para_dict(conn, atividade_id)})
+
+
+def ler_lead_da_agenda(conn, dados):
+    """Lead opcional escolhido na Agenda (None = atividade pessoal)."""
+    lead_id = dados.get("lead_id")
+    if lead_id in (None, "", 0):
+        return None
+    if not isinstance(lead_id, int):
+        raise erro(400, "Lead inválido.")
+    lead = lead_por_id(conn, lead_id)
+    if lead["descartado"]:
+        raise erro(400, "Esse lead está descartado. Restaure-o antes de agendar.")
+    return lead_id
+
+
+def rota_criar_atividade_agenda(req):
+    """Nova atividade pela Agenda Espacial: com lead (opcional) ou pessoal."""
+    usuario = exigir_login(req)
+    dados = req.json()
+    descricao, quando = ler_atividade(dados, "o título")
+    detalhes = texto(dados, "detalhes", limite=MAX_TEXTO)
     with banco() as conn:
-        linha = atividade_por_id(conn, atividade_id)
-        conn.execute("UPDATE atividades SET descricao = ?, quando = ? WHERE id = ?",
-                     (descricao, quando, atividade_id))
+        lead_id = ler_lead_da_agenda(conn, dados)
+        atividade_id = conn.execute(
+            "INSERT INTO atividades (lead_id, descricao, detalhes, quando, criado_por, criado_em) "
+            "VALUES (?, ?, ?, ?, ?, ?)", (lead_id, descricao, detalhes, quando, usuario, agora())).lastrowid
     sincronizar_atividade(atividade_id)
     with banco() as conn:
-        raise Resposta(200, lead_por_id(conn, linha["lead_id"]))
+        raise Resposta(201, {"atividade": atividade_para_dict(conn, atividade_id)})
+
+
+def rota_editar_atividade(req, atividade_id):
+    usuario = exigir_login(req)
+    dados = req.json()
+    descricao, quando = ler_atividade(dados)
+    with banco() as conn:
+        linha = atividade_por_id(conn, atividade_id, usuario)
+        detalhes = texto(dados, "detalhes", limite=MAX_TEXTO) if "detalhes" in dados else linha["detalhes"]
+        lead_id = ler_lead_da_agenda(conn, dados) if "lead_id" in dados else linha["lead_id"]
+        conn.execute("UPDATE atividades SET descricao = ?, detalhes = ?, quando = ?, lead_id = ? WHERE id = ?",
+                     (descricao, detalhes, quando, lead_id, atividade_id))
+    sincronizar_atividade(atividade_id)
+    with banco() as conn:
+        responder_atividade(conn, 200, atividade_id, linha["lead_id"] if "lead_id" not in dados else None)
 
 
 def rota_concluir_atividade(req, atividade_id):
     usuario = exigir_login(req)
     with banco() as conn:
-        linha = atividade_por_id(conn, atividade_id)
+        linha = atividade_por_id(conn, atividade_id, usuario)
         conn.execute("UPDATE atividades SET concluida = 1, concluida_em = ?, concluida_por = ? "
                      "WHERE id = ?", (agora(), usuario, atividade_id))
-        raise Resposta(200, lead_por_id(conn, linha["lead_id"]))
+        responder_atividade(conn, 200, atividade_id, linha["lead_id"] if req.parametro("de") != "agenda" else None)
+
+
+def rota_reabrir_atividade(req, atividade_id):
+    usuario = exigir_login(req)
+    with banco() as conn:
+        atividade_por_id(conn, atividade_id, usuario)
+        conn.execute("UPDATE atividades SET concluida = 0, concluida_em = '', concluida_por = '' "
+                     "WHERE id = ?", (atividade_id,))
+    sincronizar_atividade(atividade_id)
+    with banco() as conn:
+        raise Resposta(200, {"atividade": atividade_para_dict(conn, atividade_id)})
 
 
 def rota_excluir_atividade(req, atividade_id):
-    exigir_login(req)
+    usuario = exigir_login(req)
     with banco() as conn:
-        linha = atividade_por_id(conn, atividade_id)
+        linha = atividade_por_id(conn, atividade_id, usuario)
     apagar_do_google(linha)
     with banco() as conn:
         conn.execute("DELETE FROM atividades WHERE id = ?", (atividade_id,))
-        raise Resposta(200, lead_por_id(conn, linha["lead_id"]))
+        if linha["lead_id"] is not None and req.parametro("de") != "agenda":
+            raise Resposta(200, lead_por_id(conn, linha["lead_id"]))
+    raise Resposta(200, {"ok": True})
 
 
 def rota_reenviar_google(req, atividade_id):
-    exigir_login(req)
+    usuario = exigir_login(req)
     with banco() as conn:
-        linha = atividade_por_id(conn, atividade_id)
+        linha = atividade_por_id(conn, atividade_id, usuario)
     sincronizar_atividade(atividade_id)
     with banco() as conn:
-        raise Resposta(200, lead_por_id(conn, linha["lead_id"]))
+        responder_atividade(conn, 200, atividade_id, linha["lead_id"])
 
 
 # ---------------------------------------------------------------------------
@@ -1412,7 +1519,12 @@ def titulo_evento(nome, conta):
 
 
 def descricao_evento(atividade):
-    linhas = [atividade["descricao"], "", f"Lead: {atividade['nome']}"]
+    if atividade["lead_id"] is None:  # atividade pessoal
+        return "\n".join(filter(None, [atividade["detalhes"], "", "Criado pelo MASTER - Comercial 2"]))
+    linhas = [atividade["descricao"]]
+    if atividade["detalhes"]:
+        linhas.append(atividade["detalhes"])
+    linhas += ["", f"Lead: {atividade['nome']}"]
     if atividade["conta"]:
         linhas.append(f"Conta: {atividade['conta']}")
     if atividade["telefone"]:
@@ -1432,7 +1544,7 @@ def sincronizar_atividade(atividade_id):
     with banco() as conn:
         atv = conn.execute(
             "SELECT a.*, l.nome, l.conta, l.telefone, l.email FROM atividades a "
-            "JOIN leads l ON l.id = a.lead_id WHERE a.id = ?", (atividade_id,)).fetchone()
+            "LEFT JOIN leads l ON l.id = a.lead_id WHERE a.id = ?", (atividade_id,)).fetchone()
     if not atv or atv["concluida"]:
         return
     dono_agenda = atv["google_usuario"] or atv["criado_por"]
@@ -1442,7 +1554,7 @@ def sincronizar_atividade(atividade_id):
         if not token:
             return  # a pessoa ainda não conectou a Google Agenda
         inicio = datetime.strptime(atv["quando"], "%Y-%m-%dT%H:%M")
-        titulo = titulo_evento(atv["nome"], atv["conta"])
+        titulo = titulo_evento(atv["nome"], atv["conta"]) if atv["lead_id"] is not None else atv["descricao"]
         if evento_id:
             evento_id, link = ga.atualizar_evento(token, evento_id, titulo, descricao_evento(atv), inicio)
         else:
@@ -1826,6 +1938,8 @@ ROTAS = [
     ("POST", r"/api/leads/(\d+)/atividades", rota_criar_atividade),
     ("PUT", r"/api/atividades/(\d+)", rota_editar_atividade),
     ("POST", r"/api/atividades/(\d+)/concluir", rota_concluir_atividade),
+    ("POST", r"/api/atividades/(\d+)/reabrir", rota_reabrir_atividade),
+    ("POST", r"/api/atividades", rota_criar_atividade_agenda),
     ("DELETE", r"/api/atividades/(\d+)", rota_excluir_atividade),
     ("POST", r"/api/atividades/(\d+)/google", rota_reenviar_google),
     ("GET", r"/api/google/conectar", rota_google_conectar),

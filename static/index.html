@@ -590,6 +590,44 @@
     <div id="lista-escolher-lead" class="lista-escolha"></div>
   </dialog>
 
+  <!-- Atividade da Agenda Espacial (com ou sem lead) -->
+  <dialog id="modal-atividade" class="modal-atividade">
+    <form id="form-atividade">
+      <div class="modal-topo">
+        <h2 id="atividade-titulo-janela">🚀 Nova atividade</h2>
+        <button type="button" class="btn-x" id="btn-atividade-fechar" aria-label="Fechar">✕</button>
+      </div>
+      <p id="atividade-situacao" class="atividade-situacao" hidden></p>
+      <label>Título *
+        <input type="text" name="descricao" required maxlength="500" placeholder="Ex.: Reunião com cliente, Dentista, Ligar para…">
+      </label>
+      <div class="linha-dupla">
+        <label>Data *
+          <input type="text" name="data" required inputmode="numeric" maxlength="10" placeholder="DD/MM/AAAA">
+        </label>
+        <label>Hora *
+          <input type="text" name="hora" required inputmode="numeric" maxlength="5" placeholder="HH:MM">
+        </label>
+      </div>
+      <label>Descrição <small>(opcional)</small>
+        <textarea name="detalhes" rows="3" maxlength="5000" placeholder="Detalhes, endereço, pauta…"></textarea>
+      </label>
+      <fieldset class="campo-lead-atividade">
+        <legend>Lead <small>(opcional — deixe em branco para uma atividade pessoal)</small></legend>
+        <input type="search" id="atividade-busca-lead" placeholder="🔎 Buscar lead por nome ou conta…">
+        <select name="lead_id" id="atividade-lead" size="5"></select>
+      </fieldset>
+      <p id="atividade-erro" class="erro" hidden></p>
+      <div class="acoes">
+        <button type="button" id="btn-atividade-excluir" class="btn btn-perigo" hidden>Excluir</button>
+        <button type="button" id="btn-atividade-concluir" class="btn" hidden>✓ Concluir</button>
+        <button type="button" id="btn-atividade-lead" class="btn" hidden>Abrir lead</button>
+        <span class="espaco"></span>
+        <button type="submit" class="btn btn-primario">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Fechar venda -->
   <dialog id="modal-venda">
     <form id="form-venda">
