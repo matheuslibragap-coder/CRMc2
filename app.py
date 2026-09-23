@@ -29,13 +29,27 @@ PASTA_DADOS = PASTA_BASE / "dados"
 ARQUIVO_BANCO = PASTA_DADOS / "crm.db"
 ARQUIVO_GOOGLE = PASTA_DADOS / "google.json"  # criado por configurar_google.py
 
-USUARIOS = ["Libraga", "Paulinho", "Nico", "Dani", "Doug"]
-ADMIN = "Libraga"  # pode trocar a foto de todos
+# Equipe inicial: (nome, papel, participa da meta, cor do astronauta).
+# Depois da primeira execução, a equipe é gerenciada na tela de Administração.
+USUARIOS_INICIAIS = [
+    ("Libraga", "vendedor", 1, "#ffd43b"),
+    ("Paulinho", "vendedor", 1, "#ff6b6b"),
+    ("Nico", "vendedor", 1, "#9775fa"),
+    ("Dani", "vendedor", 1, "#51cf66"),
+    ("Doug", "coordenador", 0, "#adb5bd"),
+]
+CORES_NOVOS_USUARIOS = ["#4dabf7", "#ff922b", "#f783ac", "#20c997", "#e599f7", "#a9e34b", "#ffa8a8"]
+PAPEIS = ["vendedor", "coordenador"]
+ADMIN = "Libraga"  # administra a equipe, as metas e troca a foto de todos
 DONO_LEADS_ANTIGOS = "Libraga"  # leads criados antes de existir login
 
-RECORRENTES = "Contatos recorrentes"
-COLUNAS_FUNIL = ["Em contato", "Negociando", "Proposta enviada", "Fechado"]
-COLUNAS = [RECORRENTES] + COLUNAS_FUNIL
+CARTEIRA = "Carteira"  # clientes acompanhados pelo gerente de contas (fora do funil)
+FECHADO = "Fechado"
+COLUNAS_FUNIL = ["Em contato", "Negociando", "Proposta enviada", FECHADO]
+COLUNAS = [CARTEIRA] + COLUNAS_FUNIL
+ORIGEM_INDICACAO = "Indicação"
+META_EQUIPE_PADRAO = 1_200_000     # R$ 12.000,00 por mês, em centavos
+META_INDIVIDUAL_PADRAO = 300_000   # R$ 3.000,00 por mês, em centavos
 PRODUTOS = ["eGestor (NC)", "eGestor (CI)", "ProntoPost", "Site", "Vitrine"]
 ORIGEM_CAMPANHA = "Campanha do WhatsApp"
 ORIGENS = ["Banner ProntoPost", "Banner Vitrine", "Banner Site",
@@ -63,7 +77,7 @@ MAX_TENTATIVAS = 5
 BLOQUEIO_SEGUNDOS = 15 * 60
 _tentativas = {}  # usuario -> (quantidade de erros, horário do último erro)
 
-VERSAO_BANCO = 5
+VERSAO_BANCO = 6
 
 
 def agora():
@@ -272,6 +286,73 @@ def migrar_v5(conn):
     )
 
 
+def migrar_v6(conn):
+    """Equipe no banco, Carteira, histórico de etapas, dados de venda e metas."""
+    colunas_u = colunas_da_tabela(conn, "usuarios")
+    novas_u = {
+        "papel": "TEXT NOT NULL DEFAULT 'vendedor'",
+        "ativo": "INTEGER NOT NULL DEFAULT 1",
+        "cor": "TEXT NOT NULL DEFAULT '#adb5bd'",
+        "na_meta": "INTEGER NOT NULL DEFAULT 1",
+        "meta_mensal": f"INTEGER NOT NULL DEFAULT {META_INDIVIDUAL_PADRAO}",
+    }
+    for nome, tipo in novas_u.items():
+        if nome not in colunas_u:
+            conn.execute(f"ALTER TABLE usuarios ADD COLUMN {nome} {tipo}")
+    for nome, papel, na_meta, cor in USUARIOS_INICIAIS:
+        conn.execute("UPDATE usuarios SET papel = ?, na_meta = ?, cor = ? WHERE nome = ?",
+                     (papel, na_meta, cor, nome))
+
+    colunas_l = colunas_da_tabela(conn, "leads")
+    novas_l = {
+        "fechado_em": "TEXT NOT NULL DEFAULT ''",
+        "valor_venda": "INTEGER",  # centavos; é o que conta para a meta
+        "produtos_vendidos": "TEXT NOT NULL DEFAULT '[]'",
+        "comissao_dobrada": "INTEGER NOT NULL DEFAULT 0",
+        "vendedor": "TEXT NOT NULL DEFAULT ''",
+    }
+    for nome, tipo in novas_l.items():
+        if nome not in colunas_l:
+            conn.execute(f"ALTER TABLE leads ADD COLUMN {nome} {tipo}")
+
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS historico (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            lead_id   INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+            evento    TEXT NOT NULL,   -- criacao, etapa, descarte, restauracao, transferencia, venda
+            coluna    TEXT NOT NULL DEFAULT '',
+            detalhe   TEXT NOT NULL DEFAULT '',
+            usuario   TEXT NOT NULL DEFAULT '',
+            criado_em TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_historico_lead ON historico(lead_id);
+        CREATE TABLE IF NOT EXISTS config (
+            chave TEXT PRIMARY KEY,
+            valor TEXT NOT NULL
+        );
+        """
+    )
+    conn.execute("INSERT OR IGNORE INTO config VALUES ('meta_equipe_mensal', ?)",
+                 (str(META_EQUIPE_PADRAO),))
+    conn.execute("UPDATE leads SET coluna = ? WHERE coluna = 'Contatos recorrentes'", (CARTEIRA,))
+    # Leads que já estavam em "Fechado" contam como vendidos na data de criação
+    conn.execute(
+        "UPDATE leads SET fechado_em = data_criacao || 'T00:00:00', "
+        "valor_venda = COALESCE(valor_proposta, 0), produtos_vendidos = produtos, vendedor = dono "
+        "WHERE coluna = ? AND fechado_em = ''", (FECHADO,))
+    # Histórico inicial: a etapa atual, a partir da data de criação
+    for l in conn.execute("SELECT * FROM leads WHERE id NOT IN (SELECT lead_id FROM historico)").fetchall():
+        conn.execute("INSERT INTO historico (lead_id, evento, coluna, usuario, criado_em) "
+                     "VALUES (?, 'criacao', ?, ?, ?)",
+                     (l["id"], l["coluna"], l["dono"], l["data_criacao"] + "T00:00:00"))
+        if l["descartado"]:
+            conn.execute("INSERT INTO historico (lead_id, evento, coluna, detalhe, usuario, criado_em) "
+                         "VALUES (?, 'descarte', ?, ?, ?, ?)",
+                         (l["id"], l["coluna"], l["motivo_descarte"], l["descartado_por"],
+                          l["descartado_em"] or l["data_criacao"] + "T00:00:00"))
+
+
 def criar_banco():
     """Cria a pasta, o banco e os usuários na primeira execução."""
     PASTA_DADOS.mkdir(exist_ok=True)
@@ -297,11 +378,16 @@ def criar_banco():
             migrar_v4(conn)
         if versao < 5:
             migrar_v5(conn)
+        novo_banco = conn.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0] == 0
+        conn.executemany("INSERT OR IGNORE INTO usuarios (nome) VALUES (?)",
+                         [(u[0],) for u in USUARIOS_INICIAIS])
+        if versao < 6:
+            migrar_v6(conn)
+        elif novo_banco:
+            for nome, papel, na_meta, cor in USUARIOS_INICIAIS:
+                conn.execute("UPDATE usuarios SET papel = ?, na_meta = ?, cor = ? WHERE nome = ?",
+                             (papel, na_meta, cor, nome))
         conn.execute(f"PRAGMA user_version = {VERSAO_BANCO}")
-        conn.executemany(
-            "INSERT OR IGNORE INTO usuarios (nome) VALUES (?)",
-            [(u,) for u in USUARIOS],
-        )
         # Conversa geral "Comercial 2" com todos os usuários
         conn.execute(
             "INSERT OR IGNORE INTO conversas (tipo, nome, chave, criado_em) "
@@ -310,14 +396,30 @@ def criar_banco():
         geral = conn.execute("SELECT id FROM conversas WHERE chave = 'geral'").fetchone()["id"]
         conn.executemany(
             "INSERT OR IGNORE INTO membros (conversa_id, usuario) VALUES (?, ?)",
-            [(geral, u) for u in USUARIOS],
+            [(geral, u) for u in nomes_ativos(conn)],
         )
+
+
+def nomes_ativos(conn):
+    """Nomes da equipe ativa, na ordem em que foram cadastrados."""
+    return [l["nome"] for l in conn.execute("SELECT nome FROM usuarios WHERE ativo = 1 ORDER BY rowid")]
+
+
+def dados_usuario(conn, nome):
+    return conn.execute("SELECT * FROM usuarios WHERE nome = ? AND ativo = 1", (nome,)).fetchone()
+
+
+def eh_coordenador(usuario):
+    with banco() as conn:
+        u = dados_usuario(conn, usuario)
+    return bool(u and u["papel"] == "coordenador")
 
 
 def usuarios_sem_senha():
     with banco() as conn:
-        linhas = conn.execute("SELECT nome FROM usuarios WHERE senha_hash IS NULL").fetchall()
-    return [l["nome"] for l in linhas if l["nome"] in USUARIOS]
+        linhas = conn.execute("SELECT nome FROM usuarios WHERE senha_hash IS NULL AND ativo = 1 "
+                              "ORDER BY rowid").fetchall()
+    return [l["nome"] for l in linhas]
 
 
 # ---------------------------------------------------------------------------
@@ -346,10 +448,11 @@ def definir_senha(usuario, senha):
 
 
 def nome_oficial(usuario):
-    """Aceita o nome em maiúsculas/minúsculas e devolve a grafia cadastrada."""
-    for u in USUARIOS:
-        if u.lower() == (usuario or "").strip().lower():
-            return u
+    """Aceita o nome em maiúsculas/minúsculas e devolve a grafia cadastrada (só da equipe ativa)."""
+    with banco() as conn:
+        for u in nomes_ativos(conn):
+            if u.lower() == (usuario or "").strip().lower():
+                return u
     return None
 
 
@@ -379,9 +482,8 @@ def usuario_da_sessao(token):
             "SELECT usuario FROM sessoes WHERE token = ? AND expira_em > ?",
             (token, datetime.now().isoformat()),
         ).fetchone()
-    if linha and linha["usuario"] in USUARIOS:
-        return linha["usuario"]
-    return None
+        ativo = linha and dados_usuario(conn, linha["usuario"])
+    return linha["usuario"] if ativo else None
 
 
 # ---------------------------------------------------------------------------
@@ -398,7 +500,7 @@ class Resposta(Exception):
         self.tipo = tipo
 
 
-STATUS = {200: "200 OK", 201: "201 Created", 302: "302 Found", 400: "400 Bad Request",
+STATUS = {200: "200 OK", 201: "201 Created", 302: "302 Found", 409: "409 Conflict", 400: "400 Bad Request",
           401: "401 Unauthorized", 403: "403 Forbidden", 404: "404 Not Found",
           405: "405 Method Not Allowed", 413: "413 Payload Too Large",
           429: "429 Too Many Requests"}
@@ -412,7 +514,8 @@ class Requisicao:
     def __init__(self, environ):
         self.environ = environ
         self.metodo = environ["REQUEST_METHOD"]
-        self.caminho = environ.get("PATH_INFO", "/") or "/"
+        # O WSGI entrega o caminho como latin-1; nomes com acento vêm em UTF-8
+        self.caminho = (environ.get("PATH_INFO", "/") or "/").encode("latin-1").decode("utf-8", "replace")
         self.query = environ.get("QUERY_STRING", "")
         cookies = SimpleCookie(environ.get("HTTP_COOKIE", ""))
         self.token = cookies[COOKIE].value if COOKIE in cookies else None
@@ -499,7 +602,8 @@ def tipo_imagem(dados):
 # ---------------------------------------------------------------------------
 
 def rota_nomes(req):
-    raise Resposta(200, {"usuarios": USUARIOS})
+    with banco() as conn:
+        raise Resposta(200, {"usuarios": nomes_ativos(conn)})
 
 
 def rota_login(req):
@@ -530,21 +634,36 @@ def rota_logout(req):
 
 
 def lista_usuarios(conn):
-    linhas = conn.execute("SELECT nome, foto_versao FROM usuarios").fetchall()
-    versoes = {l["nome"]: l["foto_versao"] for l in linhas}
-    return [{"nome": u, "foto_versao": versoes.get(u, 0)} for u in USUARIOS]
+    """Toda a equipe (inclusive desativados, para mostrar o dono de leads antigos)."""
+    linhas = conn.execute("SELECT nome, foto_versao, cor, papel, ativo, na_meta, meta_mensal "
+                          "FROM usuarios ORDER BY rowid").fetchall()
+    return [{"nome": l["nome"], "foto_versao": l["foto_versao"], "cor": l["cor"],
+             "papel": l["papel"], "ativo": bool(l["ativo"]), "na_meta": bool(l["na_meta"]),
+             "meta_mensal": l["meta_mensal"]} for l in linhas]
+
+
+def ler_config(conn, chave, padrao):
+    linha = conn.execute("SELECT valor FROM config WHERE chave = ?", (chave,)).fetchone()
+    return linha["valor"] if linha else padrao
 
 
 def rota_eu(req):
     usuario = exigir_login(req)
     with banco() as conn:
         usuarios = lista_usuarios(conn)
+        meta_equipe = int(ler_config(conn, "meta_equipe_mensal", META_EQUIPE_PADRAO))
+        papel = dados_usuario(conn, usuario)["papel"]
     raise Resposta(200, {
         "usuario": usuario,
         "admin": usuario == ADMIN,
+        "coordenador": papel == "coordenador",
         "usuarios": usuarios,
+        "meta_equipe_mensal": meta_equipe,
         "colunas": COLUNAS,
-        "recorrentes": RECORRENTES,
+        "colunas_funil": COLUNAS_FUNIL,
+        "carteira": CARTEIRA,
+        "fechado": FECHADO,
+        "origem_indicacao": ORIGEM_INDICACAO,
         "produtos": PRODUTOS,
         "origens": ORIGENS,
         "origem_campanha": ORIGEM_CAMPANHA,
@@ -595,6 +714,111 @@ def rota_trocar_foto(req, nome):
         raise Resposta(200, {"usuarios": lista_usuarios(conn)})
 
 
+# ---------- administração (só o Libraga) ----------
+
+PALAVRAS_SENHA = ["cometa", "foguete", "planeta", "estrela", "galaxia", "orbita",
+                  "saturno", "marte", "netuno", "nebulosa", "meteoro", "lua",
+                  "astro", "jupiter", "venus", "eclipse"]
+
+
+def gerar_senha():
+    return "-".join([secrets.choice(PALAVRAS_SENHA), secrets.choice(PALAVRAS_SENHA),
+                     f"{secrets.randbelow(10000):04d}"])
+
+
+def exigir_admin(req):
+    usuario = exigir_login(req)
+    if usuario != ADMIN:
+        raise erro(403, "Só o administrador pode fazer isso.")
+    return usuario
+
+
+def resposta_admin(conn):
+    raise Resposta(200, {
+        "usuarios": lista_usuarios(conn),
+        "meta_equipe_mensal": int(ler_config(conn, "meta_equipe_mensal", META_EQUIPE_PADRAO)),
+    })
+
+
+def rota_admin(req):
+    exigir_admin(req)
+    with banco() as conn:
+        resposta_admin(conn)
+
+
+def ler_centavos(valor, nome_campo):
+    if not isinstance(valor, int) or isinstance(valor, bool) or valor < 0 or valor > 10**12:
+        raise erro(400, f"{nome_campo} inválido.")
+    return valor
+
+
+def rota_admin_config(req):
+    exigir_admin(req)
+    meta = ler_centavos(req.json().get("meta_equipe_mensal"), "Valor da meta")
+    with banco() as conn:
+        conn.execute("INSERT OR REPLACE INTO config VALUES ('meta_equipe_mensal', ?)", (str(meta),))
+        resposta_admin(conn)
+
+
+def rota_admin_criar_usuario(req):
+    exigir_admin(req)
+    dados = req.json()
+    nome = texto(dados, "nome", True, "o nome", 30)
+    if not re.fullmatch(r"[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ .'-]{1,29}", nome):
+        raise erro(400, "Use só letras no nome (de 2 a 30).")
+    papel = dados.get("papel", "vendedor")
+    if papel not in PAPEIS:
+        raise erro(400, "Papel inválido.")
+    senha = gerar_senha()
+    with banco() as conn:
+        existente = conn.execute("SELECT nome FROM usuarios WHERE lower(nome) = lower(?)",
+                                 (nome,)).fetchone()
+        if existente:
+            raise erro(400, f"Já existe alguém chamado {existente['nome']} "
+                            "(se estiver desativado, reative na lista).")
+        quantidade = conn.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0]
+        cor = CORES_NOVOS_USUARIOS[quantidade % len(CORES_NOVOS_USUARIOS)]
+        na_meta = 1 if papel == "vendedor" else 0
+        conn.execute("INSERT INTO usuarios (nome, senha_hash, papel, cor, na_meta) VALUES (?, ?, ?, ?, ?)",
+                     (nome, gerar_hash(senha), papel, cor, na_meta))
+        geral = conn.execute("SELECT id FROM conversas WHERE chave = 'geral'").fetchone()["id"]
+        conn.execute("INSERT OR IGNORE INTO membros (conversa_id, usuario) VALUES (?, ?)", (geral, nome))
+        raise Resposta(201, {"usuarios": lista_usuarios(conn), "nome": nome, "senha": senha})
+
+
+def rota_admin_editar_usuario(req, nome):
+    admin = exigir_admin(req)
+    dados = req.json()
+    with banco() as conn:
+        u = conn.execute("SELECT * FROM usuarios WHERE nome = ?", (nome,)).fetchone()
+        if not u:
+            raise erro(404, "Usuário não encontrado.")
+        papel = dados.get("papel", u["papel"])
+        if papel not in PAPEIS:
+            raise erro(400, "Papel inválido.")
+        ativo = bool(dados.get("ativo", u["ativo"]))
+        na_meta = bool(dados.get("na_meta", u["na_meta"]))
+        meta = ler_centavos(dados.get("meta_mensal", u["meta_mensal"]), "Valor da meta")
+        if nome == admin and not ativo:
+            raise erro(400, "Você não pode desativar a si mesmo.")
+        conn.execute("UPDATE usuarios SET papel = ?, ativo = ?, na_meta = ?, meta_mensal = ? "
+                     "WHERE nome = ?", (papel, int(ativo), int(na_meta), meta, nome))
+        if not ativo:
+            conn.execute("DELETE FROM sessoes WHERE usuario = ?", (nome,))
+        resposta_admin(conn)
+
+
+def rota_admin_nova_senha(req, nome):
+    exigir_admin(req)
+    with banco() as conn:
+        if not dados_usuario(conn, nome):
+            raise erro(404, "Usuário não encontrado ou desativado.")
+    senha = gerar_senha()
+    definir_senha(nome, senha)
+    _tentativas.pop(nome, None)
+    raise Resposta(200, {"nome": nome, "senha": senha})
+
+
 def rota_foto_usuario(req, nome):
     exigir_login(req)
     with banco() as conn:
@@ -609,8 +833,19 @@ def rota_foto_usuario(req, nome):
 # Rotas: leads, anotações e atividades
 # ---------------------------------------------------------------------------
 
+def registrar(conn, lead_id, evento, coluna="", detalhe="", usuario=""):
+    """Grava um acontecimento na linha do tempo do lead."""
+    conn.execute("INSERT INTO historico (lead_id, evento, coluna, detalhe, usuario, criado_em) "
+                 "VALUES (?, ?, ?, ?, ?, ?)", (lead_id, evento, coluna, detalhe, usuario, agora()))
+
+
+def reais(centavos):
+    texto_valor = f"{(centavos or 0) / 100:,.2f}"
+    return "R$ " + texto_valor.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 def leads_completos(conn, where="", params=()):
-    """Leads com suas anotações e atividades."""
+    """Leads com suas anotações, atividades e linha do tempo."""
     linhas = conn.execute(f"SELECT * FROM leads {where} ORDER BY id", params).fetchall()
     leads = []
     por_id = {}
@@ -623,7 +858,10 @@ def leads_completos(conn, where="", params=()):
             "coluna": l["coluna"], "dono": l["dono"],
             "descartado": bool(l["descartado"]), "motivo_descarte": l["motivo_descarte"],
             "descartado_em": l["descartado_em"], "descartado_por": l["descartado_por"],
-            "anotacoes": [], "atividades": [],
+            "fechado_em": l["fechado_em"], "valor_venda": l["valor_venda"],
+            "produtos_vendidos": json.loads(l["produtos_vendidos"] or "[]"),
+            "comissao_dobrada": bool(l["comissao_dobrada"]), "vendedor": l["vendedor"],
+            "anotacoes": [], "atividades": [], "historico": [],
         }
         leads.append(lead)
         por_id[l["id"]] = lead
@@ -643,6 +881,12 @@ def leads_completos(conn, where="", params=()):
             "concluida_por": a["concluida_por"], "criado_por": a["criado_por"],
             "google_link": a["google_link"], "google_erro": a["google_erro"],
             "google_usuario": a["google_usuario"],
+        })
+    for h in conn.execute(f"SELECT * FROM historico WHERE lead_id IN ({marcas}) "
+                          "ORDER BY criado_em, id", ids):
+        por_id[h["lead_id"]]["historico"].append({
+            "evento": h["evento"], "coluna": h["coluna"], "detalhe": h["detalhe"],
+            "usuario": h["usuario"], "criado_em": h["criado_em"],
         })
     return leads
 
@@ -667,19 +911,19 @@ def validar_lead(dados):
     }
     if lead["coluna"] not in COLUNAS:
         raise erro(400, "Coluna inválida.")
-    recorrente = lead["coluna"] == RECORRENTES
+    carteira = lead["coluna"] == CARTEIRA
 
     produtos = dados.get("produtos") or []
     if not isinstance(produtos, list) or any(p not in PRODUTOS for p in produtos):
         raise erro(400, "Produto inválido.")
-    if not produtos and not recorrente:
+    if not produtos and not carteira:
         raise erro(400, "Selecione ao menos um produto de interesse.")
     # Mantém a ordem padrão da lista de produtos, sem repetições
     lead["produtos"] = json.dumps([p for p in PRODUTOS if p in produtos])
 
     if lead["origem"] and lead["origem"] not in ORIGENS:
         raise erro(400, "Origem inválida.")
-    if not lead["origem"] and not recorrente:
+    if not lead["origem"] and not carteira:
         raise erro(400, "Selecione a origem do lead.")
     if lead["origem"] != ORIGEM_CAMPANHA:
         lead["origem_detalhe"] = ""
@@ -687,11 +931,72 @@ def validar_lead(dados):
         raise erro(400, "Informe qual foi a campanha do WhatsApp.")
 
     valor = dados.get("valor_proposta")
-    if valor is not None and (not isinstance(valor, int) or isinstance(valor, bool)
-                              or valor < 0 or valor > 10**12):
-        raise erro(400, "Valor da proposta inválido.")
+    if valor is not None:
+        ler_centavos(valor, "Valor da proposta")
     lead["valor_proposta"] = valor
     return lead
+
+
+def ler_venda(venda, origem):
+    """Dados pedidos ao fechar: valor, produtos vendidos e (se indicação) comissão dobrada."""
+    if not isinstance(venda, dict):
+        raise erro(400, "Informe os dados da venda para fechar o lead.")
+    valor = ler_centavos(venda.get("valor"), "Valor da venda")
+    if valor == 0:
+        raise erro(400, "Informe o valor da venda.")
+    produtos = venda.get("produtos") or []
+    if not isinstance(produtos, list) or not produtos or any(p not in PRODUTOS for p in produtos):
+        raise erro(400, "Selecione qual(is) produto(s) foi(ram) vendido(s).")
+    dobrada = venda.get("comissao_dobrada")
+    if origem == ORIGEM_INDICACAO:
+        if not isinstance(dobrada, bool):
+            raise erro(400, "Responda se a comissão é dobrada (lead de indicação).")
+    else:
+        dobrada = False
+    return {"valor_venda": valor, "produtos_vendidos": json.dumps([p for p in PRODUTOS if p in produtos]),
+            "comissao_dobrada": int(dobrada)}
+
+
+def gravar_venda(conn, lead_id, venda, vendedor=None, usuario=""):
+    campos = "valor_venda = ?, produtos_vendidos = ?, comissao_dobrada = ?"
+    valores = [venda["valor_venda"], venda["produtos_vendidos"], venda["comissao_dobrada"]]
+    if vendedor is not None:  # fechando agora
+        campos += ", fechado_em = ?, vendedor = ?"
+        valores += [agora(), vendedor]
+    conn.execute(f"UPDATE leads SET {campos} WHERE id = ?", (*valores, lead_id))
+    detalhe = reais(venda["valor_venda"]) + " · " + ", ".join(json.loads(venda["produtos_vendidos"]))
+    if venda["comissao_dobrada"]:
+        detalhe += " · comissão dobrada (indicação)"
+    registrar(conn, lead_id, "venda", FECHADO, detalhe if vendedor is not None else "Venda editada: " + detalhe, usuario)
+
+
+def telefone_normalizado(telefone):
+    digitos = re.sub(r"\D", "", telefone or "").lstrip("0")
+    if len(digitos) >= 12 and digitos.startswith("55"):
+        digitos = digitos[2:]
+    return digitos
+
+
+def procurar_duplicados(conn, lead, ignorar_id=None):
+    """Leads (de qualquer pessoa) com o mesmo telefone, e-mail ou conta."""
+    telefone = telefone_normalizado(lead["telefone"])
+    email = lead["email"].lower()
+    conta = lead["conta"].lower()
+    achados = []
+    for l in conn.execute("SELECT id, nome, dono, coluna, descartado, telefone, email, conta FROM leads"):
+        if l["id"] == ignorar_id:
+            continue
+        iguais = []
+        if len(telefone) >= 8 and telefone_normalizado(l["telefone"]) == telefone:
+            iguais.append("telefone")
+        if email and l["email"].strip().lower() == email:
+            iguais.append("e-mail")
+        if conta and l["conta"].strip().lower() == conta:
+            iguais.append("conta")
+        if iguais:
+            achados.append({"id": l["id"], "nome": l["nome"], "dono": l["dono"], "coluna": l["coluna"],
+                            "descartado": bool(l["descartado"]), "iguais": iguais})
+    return achados
 
 
 def ler_atividade(dados):
@@ -709,10 +1014,12 @@ def rota_listar_leads(req):
     usuario = exigir_login(req)
     visao = req.parametro("visao")
     filtros = {
-        "meus": ("WHERE dono = ? AND descartado = 0", (usuario,)),
-        "geral": ("WHERE descartado = 0", ()),
+        "meus": ("WHERE dono = ? AND descartado = 0 AND coluna != ?", (usuario, CARTEIRA)),
+        "geral": ("WHERE descartado = 0 AND coluna != ?", (CARTEIRA,)),
         "meus_descartados": ("WHERE dono = ? AND descartado = 1", (usuario,)),
         "descartados": ("WHERE descartado = 1", ()),
+        "carteira": ("WHERE dono = ? AND descartado = 0 AND coluna = ?", (usuario, CARTEIRA)),
+        "carteira_geral": ("WHERE descartado = 0 AND coluna = ?", (CARTEIRA,)),
         "tudo": ("", ()),
     }
     where, params = filtros.get(visao, filtros["meus"])
@@ -726,6 +1033,13 @@ def rota_ver_lead(req, lead_id):
         raise Resposta(200, lead_por_id(conn, lead_id))
 
 
+def vendedor_valido(conn, nome):
+    u = dados_usuario(conn, nome_oficial(nome) or "")
+    if not u or u["papel"] != "vendedor":
+        raise erro(400, "Escolha um vendedor ativo para ser o dono do lead.")
+    return u["nome"]
+
+
 def rota_criar_lead(req):
     usuario = exigir_login(req)
     dados = req.json()
@@ -735,17 +1049,32 @@ def rota_criar_lead(req):
     if not isinstance(atividades, list):
         raise erro(400, "Atividades inválidas.")
     atividades = [ler_atividade(a) for a in atividades if isinstance(a, dict)]
+    venda = ler_venda(dados.get("venda"), lead["origem"]) if lead["coluna"] == FECHADO else None
     momento = agora()
     with banco() as conn:
+        # O coordenador não tem Kanban próprio: escolhe para quem é o lead
+        dono = usuario
+        if dados_usuario(conn, usuario)["papel"] != "vendedor":
+            dono = vendedor_valido(conn, dados.get("dono"))
+        elif usuario == ADMIN and dados.get("dono") and dados["dono"] != usuario:
+            dono = vendedor_valido(conn, dados["dono"])
+        if not dados.get("ignorar_duplicado"):
+            duplicados = procurar_duplicados(conn, lead)
+            if duplicados:
+                raise Resposta(409, {"erro": "Já existe lead com esses dados.", "duplicados": duplicados})
         cur = conn.execute(
             """INSERT INTO leads (nome, telefone, email, conta, produtos, origem,
                                   origem_detalhe, valor_proposta, data_criacao, coluna, dono)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (lead["nome"], lead["telefone"], lead["email"], lead["conta"], lead["produtos"],
              lead["origem"], lead["origem_detalhe"], lead["valor_proposta"],
-             momento[:10], lead["coluna"], usuario),
+             momento[:10], lead["coluna"], dono),
         )
         lead_id = cur.lastrowid
+        detalhe = f"criado por {usuario}" if dono != usuario else ""
+        registrar(conn, lead_id, "criacao", lead["coluna"], detalhe, usuario)
+        if venda:
+            gravar_venda(conn, lead_id, venda, dono, usuario)
         if anotacao:
             conn.execute("INSERT INTO anotacoes (lead_id, texto, autor, criado_em) "
                          "VALUES (?, ?, ?, ?)", (lead_id, anotacao, usuario, momento))
@@ -760,17 +1089,22 @@ def rota_criar_lead(req):
 
 
 def rota_editar_lead(req, lead_id):
-    # Qualquer pessoa da equipe pode editar/mover (para ajudar um colega);
-    # o dono do lead nunca muda.
-    exigir_login(req)
+    # Qualquer pessoa da equipe pode editar/mover (para ajudar um colega).
+    # Trocar o dono é feito pela rota de transferência.
+    usuario = exigir_login(req)
     dados = req.json()
     with banco() as conn:
         atual = lead_por_id(conn, lead_id)
         mesclado = {**atual, **dados}
-        if (atual["coluna"] == RECORRENTES) != (mesclado.get("coluna") == RECORRENTES):
-            raise erro(400, "Contatos recorrentes ficam fora do funil e não podem ser "
+        if (atual["coluna"] == CARTEIRA) != (mesclado.get("coluna") == CARTEIRA):
+            raise erro(400, "Clientes da Carteira ficam fora do funil e não podem ser "
                             "movidos para as etapas (nem o contrário).")
         lead = validar_lead(mesclado)
+        entrou_fechado = lead["coluna"] == FECHADO and atual["coluna"] != FECHADO
+        saiu_fechado = atual["coluna"] == FECHADO and lead["coluna"] != FECHADO
+        venda = None
+        if entrou_fechado or (lead["coluna"] == FECHADO and "venda" in dados):
+            venda = ler_venda(dados.get("venda"), lead["origem"])
         conn.execute(
             """UPDATE leads SET nome = ?, telefone = ?, email = ?, conta = ?, produtos = ?,
                    origem = ?, origem_detalhe = ?, valor_proposta = ?, coluna = ?
@@ -779,6 +1113,13 @@ def rota_editar_lead(req, lead_id):
              lead["origem"], lead["origem_detalhe"], lead["valor_proposta"], lead["coluna"],
              lead_id),
         )
+        if lead["coluna"] != atual["coluna"]:
+            registrar(conn, lead_id, "etapa", lead["coluna"], f"saiu de {atual['coluna']}", usuario)
+        if venda:
+            gravar_venda(conn, lead_id, venda, atual["dono"] if entrou_fechado else None, usuario)
+        if saiu_fechado:
+            conn.execute("UPDATE leads SET fechado_em = '', valor_venda = NULL, produtos_vendidos = '[]', "
+                         "comissao_dobrada = 0, vendedor = '' WHERE id = ?", (lead_id,))
         mudou_titulo = (atual["nome"], atual["conta"]) != (lead["nome"], lead["conta"])
         com_evento = [a["id"] for a in conn.execute(
             "SELECT id FROM atividades WHERE lead_id = ? AND concluida = 0 AND google_evento_id != ''",
@@ -789,24 +1130,41 @@ def rota_editar_lead(req, lead_id):
         raise Resposta(200, lead_por_id(conn, lead_id))
 
 
+def rota_transferir_lead(req, lead_id):
+    usuario = exigir_login(req)
+    with banco() as conn:
+        lead = lead_por_id(conn, lead_id)
+        papel = dados_usuario(conn, usuario)["papel"]
+        if usuario not in (lead["dono"], ADMIN) and papel != "coordenador":
+            raise erro(403, f"Só {lead['dono']}, o coordenador ou o administrador podem transferir este lead.")
+        novo = vendedor_valido(conn, texto(req.json(), "dono"))
+        if novo == lead["dono"]:
+            raise erro(400, f"O lead já é de {novo}.")
+        conn.execute("UPDATE leads SET dono = ? WHERE id = ?", (novo, lead_id))
+        registrar(conn, lead_id, "transferencia", lead["coluna"], f"de {lead['dono']} para {novo}", usuario)
+        raise Resposta(200, lead_por_id(conn, lead_id))
+
+
 def rota_descartar_lead(req, lead_id):
     usuario = exigir_login(req)
     motivo = texto(req.json(), "motivo")
     if motivo not in MOTIVOS_DESCARTE:
         raise erro(400, "Escolha o motivo do descarte.")
     with banco() as conn:
-        lead_por_id(conn, lead_id)
+        lead = lead_por_id(conn, lead_id)
         conn.execute("UPDATE leads SET descartado = 1, motivo_descarte = ?, descartado_em = ?, "
                      "descartado_por = ? WHERE id = ?", (motivo, agora(), usuario, lead_id))
+        registrar(conn, lead_id, "descarte", lead["coluna"], motivo, usuario)
         raise Resposta(200, lead_por_id(conn, lead_id))
 
 
 def rota_restaurar_lead(req, lead_id):
-    exigir_login(req)
+    usuario = exigir_login(req)
     with banco() as conn:
-        lead_por_id(conn, lead_id)
+        lead = lead_por_id(conn, lead_id)
         conn.execute("UPDATE leads SET descartado = 0, motivo_descarte = '', descartado_em = '', "
                      "descartado_por = '' WHERE id = ?", (lead_id,))
+        registrar(conn, lead_id, "restauracao", lead["coluna"], "", usuario)
         raise Resposta(200, lead_por_id(conn, lead_id))
 
 
@@ -823,6 +1181,72 @@ def rota_excluir_lead(req, lead_id):
     with banco() as conn:
         conn.execute("DELETE FROM leads WHERE id = ?", (lead_id,))
     raise Resposta(200, {"ok": True})
+
+
+def rota_minhas_atividades(req):
+    """Atividades pendentes da pessoa (para o "Meu dia" e os lembretes).
+
+    Vendedor: dos leads dele e as que ele criou. Coordenador: de toda a equipe.
+    """
+    usuario = exigir_login(req)
+    sql = ("SELECT a.id, a.descricao, a.quando, a.criado_por, l.id AS lead_id, l.nome, l.conta, "
+           "l.dono FROM atividades a JOIN leads l ON l.id = a.lead_id "
+           "WHERE a.concluida = 0 AND l.descartado = 0")
+    params = ()
+    if not eh_coordenador(usuario):
+        sql += " AND (l.dono = ? OR a.criado_por = ?)"
+        params = (usuario, usuario)
+    with banco() as conn:
+        linhas = conn.execute(sql + " ORDER BY a.quando", params).fetchall()
+    raise Resposta(200, {"atividades": [dict(l) for l in linhas]})
+
+
+def ler_data(texto_data):
+    try:
+        return datetime.strptime(texto_data, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        raise erro(400, "Período inválido.")
+
+
+def rota_decolagem(req):
+    """Vendas do período para a meta: só leads fechados, pelo valor da venda (sem dobrar)."""
+    exigir_login(req)
+    inicio, fim = ler_data(req.parametro("inicio")), ler_data(req.parametro("fim"))
+    try:
+        meses = max(1, min(12, int(req.parametro("meses") or 1)))
+    except ValueError:
+        meses = 1
+    with banco() as conn:
+        meta_mensal = int(ler_config(conn, "meta_equipe_mensal", META_EQUIPE_PADRAO))
+        participantes = conn.execute(
+            "SELECT nome, meta_mensal FROM usuarios WHERE ativo = 1 AND na_meta = 1 ORDER BY rowid").fetchall()
+        vendas = conn.execute(
+            "SELECT id, nome, conta, vendedor, valor_venda, produtos_vendidos, comissao_dobrada, fechado_em, origem "
+            "FROM leads WHERE coluna = ? AND descartado = 0 AND fechado_em >= ? AND fechado_em <= ? "
+            "ORDER BY fechado_em DESC",
+            (FECHADO, inicio.isoformat(), fim.isoformat() + "T23:59:59")).fetchall()
+    pessoas = {p["nome"]: {"nome": p["nome"], "meta": p["meta_mensal"] * meses, "vendido": 0,
+                           "comissao": 0, "vendas": 0, "produtos": {}} for p in participantes}
+    lista = []
+    for v in vendas:
+        pessoa = pessoas.get(v["vendedor"])
+        valor = v["valor_venda"] or 0
+        produtos = json.loads(v["produtos_vendidos"] or "[]")
+        if pessoa:
+            pessoa["vendido"] += valor
+            pessoa["comissao"] += valor * (2 if v["comissao_dobrada"] else 1)
+            pessoa["vendas"] += 1
+            for p in produtos:
+                pessoa["produtos"][p] = pessoa["produtos"].get(p, 0) + 1
+        lista.append({"id": v["id"], "nome": v["nome"], "conta": v["conta"], "vendedor": v["vendedor"],
+                      "valor": valor, "produtos": produtos, "dobrada": bool(v["comissao_dobrada"]),
+                      "fechado_em": v["fechado_em"], "na_meta": bool(pessoa)})
+    raise Resposta(200, {
+        "meta_equipe": meta_mensal * meses,
+        "vendido_equipe": sum(p["vendido"] for p in pessoas.values()),
+        "participantes": sorted(pessoas.values(), key=lambda p: -p["vendido"]),
+        "vendas": lista,
+    })
 
 
 def rota_criar_anotacao(req, lead_id):
@@ -1098,6 +1522,7 @@ def rota_listar_conversas(req):
         linhas = conn.execute(
             "SELECT c.*, m.lida_ate FROM conversas c JOIN membros m ON m.conversa_id = c.id "
             "WHERE m.usuario = ?", (usuario,)).fetchall()
+        todos = [u["nome"] for u in lista_usuarios(conn)]
         conversas = []
         for c in linhas:
             membros = [r["usuario"] for r in conn.execute(
@@ -1111,7 +1536,7 @@ def rota_listar_conversas(req):
             conversas.append({
                 "id": c["id"], "tipo": c["tipo"],
                 "nome": outro if outro else c["nome"],
-                "outro": outro, "membros": [u for u in USUARIOS if u in membros],
+                "outro": outro, "membros": [u for u in todos if u in membros],
                 "foto_versao": c["foto_versao"], "criado_por": c["criado_por"],
                 "nao_lidas": nao_lidas,
                 "ultima": {"autor": ultima["autor"], "resumo": resumo_mensagem(ultima),
@@ -1347,6 +1772,14 @@ ROTAS = [
     ("DELETE", r"/api/leads/(\d+)", rota_excluir_lead),
     ("POST", r"/api/leads/(\d+)/descartar", rota_descartar_lead),
     ("POST", r"/api/leads/(\d+)/restaurar", rota_restaurar_lead),
+    ("POST", r"/api/leads/(\d+)/transferir", rota_transferir_lead),
+    ("GET", r"/api/minhas-atividades", rota_minhas_atividades),
+    ("GET", r"/api/decolagem", rota_decolagem),
+    ("GET", r"/api/admin", rota_admin),
+    ("PUT", r"/api/admin/config", rota_admin_config),
+    ("POST", r"/api/admin/usuarios", rota_admin_criar_usuario),
+    ("PUT", r"/api/admin/usuarios/([^/]+)", rota_admin_editar_usuario),
+    ("POST", r"/api/admin/usuarios/([^/]+)/senha", rota_admin_nova_senha),
     ("POST", r"/api/leads/(\d+)/anotacoes", rota_criar_anotacao),
     ("DELETE", r"/api/anotacoes/(\d+)", rota_excluir_anotacao),
     ("POST", r"/api/leads/(\d+)/atividades", rota_criar_atividade),

@@ -20,7 +20,12 @@ async function api(metodo, url, corpo) {
   });
   const dados = await resp.json().catch(() => ({}));
   if (resp.status === 401 && estado.usuario) mostrarLogin();
-  if (!resp.ok) throw new Error(dados.erro || "Erro ao falar com o servidor.");
+  if (!resp.ok) {
+    const falha = new Error(dados.erro || "Erro ao falar com o servidor.");
+    falha.status = resp.status;
+    falha.dados = dados;
+    throw falha;
+  }
   return dados;
 }
 
@@ -120,10 +125,10 @@ function avatar(nome, classeExtra = "") {
     img.src = `/api/foto/usuario/${encodeURIComponent(nome)}?v=${u.foto_versao}`;
     img.alt = nome;
     // Se a foto não carregar, volta para o astronauta
-    img.onerror = () => (caixa.innerHTML = svgAstronauta(CORES_USUARIO[nome] || "#adb5bd"));
+    img.onerror = () => (caixa.innerHTML = svgAstronauta(corUsuario(nome)));
     caixa.append(img);
   } else {
-    caixa.innerHTML = svgAstronauta(CORES_USUARIO[nome] || "#adb5bd");
+    caixa.innerHTML = svgAstronauta(corUsuario(nome));
   }
   return caixa;
 }
@@ -209,6 +214,7 @@ async function iniciar() {
 function entrarNoSistema(dados) {
   estado.usuario = dados.usuario;
   estado.admin = dados.admin;
+  estado.coordenador = dados.coordenador;
   estado.usuarios = dados.usuarios;
   estado.config = dados;
   estado.google = dados.google;
@@ -216,11 +222,13 @@ function entrarNoSistema(dados) {
   telaLogin.hidden = true;
   telaApp.hidden = false;
   preencherAvatar(document.getElementById("avatar-topo"), estado.usuario);
+  document.getElementById("menu-admin").hidden = !estado.admin;
   prepararFormularioLead();
   prepararFeedbacks();
   irPara("kanban");
-  trocarVisao("meus");
+  trocarVisao(estado.coordenador ? "geral" : "meus");
   iniciarAvisosChat();
+  iniciarLembretes();
   avisoRetornoGoogle();
 }
 
@@ -283,6 +291,7 @@ document.getElementById("form-login").addEventListener("submit", async (ev) => {
 async function sair() {
   await api("POST", "/api/logout").catch(() => {});
   pararAvisosChat();
+  pararLembretes();
   mostrarLogin();
 }
 
@@ -310,6 +319,7 @@ document.querySelectorAll(".menu-item[data-pagina]").forEach((item) => {
   item.onclick = () => { fecharMenu(); irPara(item.dataset.pagina); };
 });
 document.getElementById("menu-perfil").onclick = () => { fecharMenu(); abrirPerfil(); };
+document.getElementById("menu-meu-dia").onclick = () => { fecharMenu(); abrirMeuDia(); };
 document.getElementById("menu-sair").onclick = () => { fecharMenu(); sair(); };
 document.getElementById("btn-chat").onclick = () => irPara("chat");
 
@@ -319,7 +329,12 @@ function irPara(pagina) {
   document.querySelectorAll(".menu-item[data-pagina]").forEach((i) =>
     i.classList.toggle("ativo", i.dataset.pagina === pagina));
   document.getElementById("btn-chat").classList.toggle("ativo", pagina === "chat");
+  document.getElementById("btn-carteira").classList.toggle("ativo", pagina === "carteira");
+  document.getElementById("btn-novo").hidden = pagina !== "kanban";
   if (pagina === "kanban") carregarLeads();
+  if (pagina === "carteira") carregarCarteira();
+  if (pagina === "decolagem") abrirDecolagem();
+  if (pagina === "admin") abrirAdmin();
   if (pagina === "relatorios") abrirRelatorios();
   if (pagina === "chat") abrirChat();
   if (pagina === "participantes") abrirParticipantes();

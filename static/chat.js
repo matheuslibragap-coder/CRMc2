@@ -342,7 +342,7 @@ const modalNovaConversa = document.getElementById("modal-nova-conversa");
 document.getElementById("btn-nova-conversa").onclick = () => {
   const lista = document.getElementById("nova-conversa-lista");
   lista.innerHTML = "";
-  estado.usuarios.filter((u) => u.nome !== estado.usuario).forEach((u) => {
+  estado.usuarios.filter((u) => u.ativo && u.nome !== estado.usuario).forEach((u) => {
     const item = el("button", "item-escolha");
     item.type = "button";
     item.append(avatar(u.nome, "avatar-mini"), el("b", "", u.nome));
@@ -398,7 +398,7 @@ function abrirGrupo(conversa) {
   formGrupo.nome.value = conversa ? conversa.nome : "";
   const membros = document.getElementById("grupo-membros");
   membros.innerHTML = "";
-  estado.usuarios.filter((u) => u.nome !== estado.usuario).forEach((u, i) => {
+  estado.usuarios.filter((u) => u.ativo && u.nome !== estado.usuario).forEach((u, i) => {
     const opcao = el("label", `opcao-produto p-${i % 5}`);
     const check = el("input");
     check.type = "checkbox";
@@ -466,10 +466,11 @@ async function abrirParticipantes() {
 function desenharParticipantes() {
   const lista = document.getElementById("lista-participantes");
   lista.innerHTML = "";
-  estado.usuarios.forEach((u) => {
+  estado.usuarios.filter((u) => u.ativo).forEach((u) => {
     const cartao = el("div", "participante");
     cartao.append(avatar(u.nome, "avatar-grande"));
     cartao.append(el("b", "", u.nome + (u.nome === estado.usuario ? " (você)" : "")));
+    if (u.papel === "coordenador") cartao.append(el("span", "chip", "🧭 Coordenador"));
     const botoes = el("div", "participante-botoes");
     if (u.nome !== estado.usuario) {
       const b = el("button", "btn btn-pequeno btn-primario", "💬 Conversar");

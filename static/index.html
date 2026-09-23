@@ -73,6 +73,7 @@
         <div id="popup-chat" class="popup-chat" hidden></div>
       </div>
       <div class="topo-direita">
+        <button id="btn-carteira" class="btn-carteira" title="Carteira de clientes" aria-label="Abrir Carteira">💼</button>
         <button id="btn-perfil" class="btn-perfil" title="Meu perfil">
           <span id="avatar-topo" class="avatar-caixa"></span>
           <span class="ola">Olá, <b id="nome-usuario"></b>!</span>
@@ -91,11 +92,15 @@
       </div>
       <nav>
         <button class="menu-item" data-pagina="kanban">🗂️ Kanban</button>
+        <button class="menu-item" id="menu-meu-dia">☀️ Meu dia</button>
+        <button class="menu-item" data-pagina="carteira">💼 Carteira</button>
+        <button class="menu-item" data-pagina="decolagem">🚀 Decolagem do sucesso</button>
         <button class="menu-item" data-pagina="relatorios">📊 Relatórios</button>
         <button class="menu-item" data-pagina="chat">💬 Chat Comercial 2</button>
         <button class="menu-item" data-pagina="participantes">👩‍🚀 Participantes</button>
         <button class="menu-item" data-pagina="feedbacks">💡 Feedbacks</button>
         <button class="menu-item" data-pagina="ajuda">❓ Ajuda</button>
+        <button class="menu-item" data-pagina="admin" id="menu-admin" hidden>⚙️ Administração</button>
         <hr>
         <button class="menu-item" id="menu-perfil">🙂 Meu perfil</button>
         <button class="menu-item" id="menu-sair">🚪 Sair</button>
@@ -104,6 +109,7 @@
 
     <!-- ---------- Página: Kanban ---------- -->
     <section id="pagina-kanban" class="pagina">
+      <div class="mensagem-dia" id="mensagem-dia"></div>
       <div class="barra-kanban">
         <nav class="abas">
           <button class="aba ativa" data-visao="meus">Meus leads</button>
@@ -117,8 +123,90 @@
           <span class="leg leg-futura">Atividade futura</span>
         </div>
       </div>
+      <div class="filtros-kanban">
+        <input type="search" id="filtro-busca" placeholder="🔎 Buscar por nome, telefone, e-mail ou conta…">
+        <select id="filtro-produto" aria-label="Filtrar por produto"></select>
+        <select id="filtro-origem" aria-label="Filtrar por origem"></select>
+        <select id="filtro-dono" aria-label="Filtrar por dono"></select>
+        <button type="button" id="btn-limpar-filtros" class="btn btn-pequeno" hidden>Limpar filtros</button>
+      </div>
       <p id="aviso-visao" class="aviso-visao" hidden></p>
       <main id="quadro" class="quadro"></main>
+    </section>
+
+    <!-- ---------- Página: Carteira ---------- -->
+    <section id="pagina-carteira" class="pagina pagina-conteudo pagina-larga" hidden>
+      <div class="painel">
+        <div class="painel-topo">
+          <h2>💼 Carteira</h2>
+          <div class="acoes-carteira">
+            <nav class="abas abas-claras" id="abas-carteira">
+              <button class="aba ativa" data-visao="carteira">Minha carteira</button>
+              <button class="aba" data-visao="carteira_geral">Carteira da equipe</button>
+            </nav>
+            <button id="btn-add-carteira" class="btn btn-primario">+ Adicionar cliente</button>
+          </div>
+        </div>
+        <p class="dica">Clientes que você acompanha como gerente de contas. Eles ficam fora do funil: não passam pelas etapas do Kanban.
+          Atividades, anotações e descarte funcionam igual aos leads.</p>
+        <input type="search" id="busca-carteira" placeholder="🔎 Buscar na carteira…">
+      </div>
+      <div id="lista-carteira" class="grade-cards"></div>
+    </section>
+
+    <!-- ---------- Página: Decolagem do sucesso ---------- -->
+    <section id="pagina-decolagem" class="pagina pagina-conteudo pagina-larga" hidden>
+      <div class="painel">
+        <div class="painel-topo">
+          <h2>🚀 Decolagem do sucesso</h2>
+          <div class="seletor-periodo">
+            <nav class="abas abas-claras">
+              <button class="aba ativa" data-tipo="mes">Mês</button>
+              <button class="aba" data-tipo="trimestre">Trimestre</button>
+            </nav>
+            <button type="button" class="btn-redondo" id="periodo-anterior" aria-label="Período anterior">‹</button>
+            <b id="periodo-nome"></b>
+            <button type="button" class="btn-redondo" id="periodo-seguinte" aria-label="Próximo período">›</button>
+          </div>
+        </div>
+        <div id="trilha"></div>
+      </div>
+      <div id="decolagem-conteudo"></div>
+    </section>
+
+    <!-- ---------- Página: Administração ---------- -->
+    <section id="pagina-admin" class="pagina pagina-conteudo" hidden>
+      <div class="painel">
+        <h2>⚙️ Administração</h2>
+        <form id="form-meta-equipe" class="linha-form">
+          <label>Meta mensal do Comercial 2 (R$)
+            <input type="text" name="meta" inputmode="decimal" required>
+          </label>
+          <button type="submit" class="btn btn-primario">Salvar meta</button>
+        </form>
+        <p id="admin-erro" class="erro" hidden></p>
+      </div>
+      <div class="painel">
+        <h3>Equipe</h3>
+        <p class="dica">Vendedores têm Kanban próprio. O coordenador acompanha a equipe pela Visão Geral.
+          Só quem “participa da meta” entra na Decolagem do sucesso e no ranking.</p>
+        <div class="tabela-rolagem"><table class="tabela" id="tabela-equipe"></table></div>
+      </div>
+      <div class="painel">
+        <h3>Adicionar pessoa</h3>
+        <form id="form-novo-usuario" class="linha-form">
+          <label>Nome
+            <input type="text" name="nome" required maxlength="30">
+          </label>
+          <label>Papel
+            <select name="papel">
+              <option value="vendedor">Vendedor</option>
+              <option value="coordenador">Coordenador</option>
+            </select>
+          </label>
+          <button type="submit" class="btn btn-primario">Adicionar</button>
+        </form>
+      </div>
     </section>
 
     <!-- ---------- Página: Relatórios ---------- -->
@@ -232,6 +320,10 @@
       <p id="aviso-descartado" class="aviso-descartado" hidden></p>
       <div class="lead-grade">
         <div class="lead-dados">
+          <div id="caixa-venda" class="caixa-venda" hidden></div>
+          <label id="campo-dono">Dono do lead
+            <select name="dono"></select>
+          </label>
           <label>Nome *
             <input type="text" name="nome" required maxlength="200">
           </label>
@@ -304,6 +396,11 @@
           <section class="bloco">
             <h3>✅ Registro de atividades concluídas</h3>
             <div id="lista-concluidas"></div>
+          </section>
+
+          <section class="bloco" id="bloco-linha-tempo">
+            <h3>🕓 Linha do tempo</h3>
+            <div id="linha-tempo"></div>
           </section>
         </div>
       </div>
@@ -447,6 +544,76 @@
     <input type="search" id="busca-lead" placeholder="Buscar por nome, telefone, conta ou dono…">
     <div id="lista-escolher-lead" class="lista-escolha"></div>
   </dialog>
+
+  <!-- Fechar venda -->
+  <dialog id="modal-venda">
+    <form id="form-venda">
+      <h2>🚀 Venda fechada!</h2>
+      <p class="dica" id="venda-nome"></p>
+      <label>Valor da venda (R$) *
+        <input type="text" name="valor" inputmode="decimal" required placeholder="Ex.: 1.500,00">
+      </label>
+      <fieldset>
+        <legend>Qual/quais produto(s) foram vendidos? *</legend>
+        <div id="venda-produtos" class="opcoes-produtos"></div>
+      </fieldset>
+      <fieldset id="venda-indicacao" hidden>
+        <legend>Lead de indicação: comissão dobrada? *</legend>
+        <div class="opcoes-sim-nao">
+          <label class="opcao-motivo"><input type="radio" name="dobrada" value="sim"><span>SIM</span></label>
+          <label class="opcao-motivo"><input type="radio" name="dobrada" value="nao"><span>NÃO</span></label>
+        </div>
+        <small class="dica">A comissão dobrada não muda a meta: para a meta conta só o valor da venda.</small>
+      </fieldset>
+      <p id="venda-erro" class="erro" hidden></p>
+      <div class="acoes">
+        <span class="espaco"></span>
+        <button type="button" id="btn-venda-cancelar" class="btn">Cancelar</button>
+        <button type="submit" class="btn btn-primario">Confirmar venda</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Aviso de lead duplicado -->
+  <dialog id="modal-duplicado">
+    <h2>⚠️ Esse lead já existe?</h2>
+    <p class="dica">Encontramos lead(s) com os mesmos dados. Confira para não trabalharem o mesmo cliente em dobro.</p>
+    <div id="lista-duplicados" class="lista-escolha"></div>
+    <div class="acoes">
+      <span class="espaco"></span>
+      <button type="button" id="btn-duplicado-cancelar" class="btn">Voltar e revisar</button>
+      <button type="button" id="btn-duplicado-continuar" class="btn btn-primario">Cadastrar mesmo assim</button>
+    </div>
+  </dialog>
+
+  <!-- Meu dia -->
+  <dialog id="modal-meu-dia" class="modal-meu-dia">
+    <div class="modal-topo">
+      <h2 id="meu-dia-titulo">☀️ Meu dia</h2>
+      <button type="button" class="btn-x" data-fechar="modal-meu-dia" aria-label="Fechar">✕</button>
+    </div>
+    <div id="meu-dia-conteudo"></div>
+    <div class="acoes">
+      <button type="button" id="btn-notificacoes" class="btn btn-pequeno">🔔 Avisar também fora da aba</button>
+      <span class="espaco"></span>
+      <button type="button" class="btn btn-primario" data-fechar="modal-meu-dia">Bora decolar! 🚀</button>
+    </div>
+  </dialog>
+
+  <!-- Senha gerada (administração) -->
+  <dialog id="modal-senha-gerada">
+    <h2>🔑 Senha gerada</h2>
+    <p>Passe esta senha para <b id="senha-gerada-nome"></b> de forma privada. Ela não aparece de novo.</p>
+    <p class="senha-gerada" id="senha-gerada"></p>
+    <div class="acoes">
+      <button type="button" id="btn-copiar-senha" class="btn">⧉ Copiar</button>
+      <span class="espaco"></span>
+      <button type="button" class="btn btn-primario" data-fechar="modal-senha-gerada">Pronto</button>
+    </div>
+  </dialog>
+
+  <div id="lembretes" class="lembretes"></div>
+  <div id="comemoracao" class="comemoracao" hidden></div>
 
   <input type="file" id="arquivo-foto" accept="image/*" hidden>
   <div id="aviso-copiado" class="aviso-copiado" hidden>Copiado!</div>

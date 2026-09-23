@@ -3,13 +3,18 @@
 CRM em quadro Kanban da equipe Comercial 2 (eGestor NC/CI, ProntoPost, Site, Vitrine).
 Feito só com Python, sem nenhuma biblioteca para instalar.
 
-- **Usuários:** Libraga, Paulinho, Nico, Dani e Doug.
-- **Kanban:** Contatos recorrentes (fora do funil), Em contato, Negociando, Proposta enviada (com a soma
-  das propostas) e Fechado. Abas: Meus leads, Visão Geral - Comercial 2, Meus descartados e Descartados geral.
-- **Lead:** origem, produtos, valor da proposta, atividades com data e hora (o card fica vermelho, azul
-  ou amarelo), anotações com data e hora, registro das atividades concluídas e descarte com motivo.
-- **Menu (planeta Terra):** Kanban, Relatórios, Chat Comercial 2 (texto, áudio e leads; conversas 1:1 e
-  grupos), Participantes, Feedbacks e Ajuda.
+- **Equipe:** Libraga, Paulinho, Nico e Dani (vendedores) e Doug (coordenador, sem Kanban próprio).
+  O Libraga administra a equipe, as senhas e as metas pela tela **Administração**.
+- **Kanban:** Em contato, Negociando, Proposta enviada (soma das propostas) e Fechado (soma das vendas),
+  com busca e filtros. Abas: Meus leads, Visão Geral - Comercial 2, Meus descartados e Descartados geral.
+- **💼 Carteira:** clientes acompanhados pelo gerente de contas, fora do funil (botão ao lado da foto).
+- **Lead:** origem, produtos, WhatsApp, aviso de duplicado, transferência, linha do tempo, atividades com
+  cores e Google Agenda, anotações com data e hora, descarte com motivo e, ao fechar, valor, produtos
+  vendidos e comissão dobrada para indicação.
+- **🚀 Decolagem do sucesso:** meta mensal/trimestral (padrão R$ 12.000,00/mês), trilha espacial,
+  tripulação com comissões e ranking em tempo real.
+- **Menu (planeta Terra):** Kanban, Meu dia, Carteira, Decolagem, Relatórios, Chat, Participantes,
+  Feedbacks, Ajuda e Administração.
 - O passo a passo de uso para a equipe fica na página **Ajuda**, dentro do sistema.
 
 ---
@@ -47,7 +52,7 @@ cd ~/master && python3 definir_senhas.py
 Aparecem as senhas **uma única vez** (só de quem ainda não tem senha). Anote e passe cada uma para a pessoa certa, de forma privada.
 Depois de entrar, cada um pode trocar a própria senha no botão **Trocar senha**.
 
-Esqueceram a senha? Gere uma nova só para essa pessoa, por exemplo:
+Esqueceram a senha? O Libraga gera uma nova em **Administração → 🔑 Nova senha**, ou pelo Bash:
 ```
 cd ~/master && python3 definir_senhas.py Nico
 ```

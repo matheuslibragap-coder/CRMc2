@@ -2,14 +2,11 @@
 
 const CONTORNO = "#1a1033";
 
-// Cor de cada pessoa: usada no astronauta padrão e na etiqueta de dono
-const CORES_USUARIO = {
-  Libraga: "#ffd43b",  // amarelo
-  Paulinho: "#ff6b6b", // vermelho
-  Nico: "#9775fa",     // roxo
-  Dani: "#51cf66",     // verde
-  Doug: "#adb5bd",     // cinza
-};
+// Cor de cada pessoa (definida na Administração): astronauta padrão e etiqueta de dono
+function corUsuario(nome) {
+  const u = (typeof estado !== "undefined" ? estado.usuarios : []).find((x) => x.nome === nome);
+  return (u && u.cor) || "#adb5bd";
+}
 
 const ICONES = {
   foguete: `<svg viewBox="0 0 64 64" aria-hidden="true">
@@ -33,6 +30,11 @@ const ICONES = {
     <circle cx="22" cy="26" r="3.5" fill="${CONTORNO}"/>
     <circle cx="32" cy="26" r="3.5" fill="${CONTORNO}"/>
     <circle cx="42" cy="26" r="3.5" fill="${CONTORNO}"/>
+  </svg>`,
+
+  whatsapp: `<svg viewBox="0 0 32 32" aria-hidden="true">
+    <path d="M16 3 C9 3 3.5 8.4 3.5 15.2 C3.5 17.6 4.2 19.9 5.4 21.8 L4 28 L10.4 26.5 C12.1 27.4 14 27.9 16 27.9 C23 27.9 28.5 22.4 28.5 15.5 C28.5 8.5 23 3 16 3 Z" fill="#25d366" stroke="${CONTORNO}" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M11.6 9.6 C11.2 9.6 10.6 9.8 10.2 10.4 C9.7 11 9.3 12 9.6 13.4 C10.2 15.8 12.4 18.8 15.4 20.6 C17.6 21.9 19.3 22.2 20.4 21.8 C21.4 21.4 22 20.6 22.1 19.9 C22.2 19.4 22 19.2 21.6 19 L19.2 17.8 C18.8 17.6 18.5 17.7 18.3 18 L17.5 19 C17.3 19.2 17 19.3 16.7 19.1 C15.2 18.4 13.9 17.2 13.1 15.8 C12.9 15.5 13 15.2 13.2 15 L14 14.1 C14.2 13.9 14.3 13.6 14.1 13.3 L13 10.6 C12.8 10 12.4 9.6 11.6 9.6 Z" fill="#fff"/>
   </svg>`,
 
   // Colunas do Kanban
@@ -97,7 +99,7 @@ const ICONES = {
 };
 
 const ICONE_COLUNA = {
-  "Contatos recorrentes": "satelite",
+  "Carteira": "satelite",
   "Em contato": "alien",
   "Negociando": "ovni",
   "Proposta enviada": "planeta",
