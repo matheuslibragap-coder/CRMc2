@@ -16,14 +16,12 @@
     <div class="estrelas estrelas-2"></div>
 
     <svg class="deco planeta" viewBox="0 0 200 200">
-      <!-- metade de trás do anel -->
       <path d="M6 112 A94 24 0 0 1 194 112" fill="none" stroke="#1a1033" stroke-width="14"/>
       <path d="M6 112 A94 24 0 0 1 194 112" fill="none" stroke="#ffd43b" stroke-width="7"/>
       <circle cx="100" cy="100" r="62" fill="#ff8fab" stroke="#1a1033" stroke-width="6"/>
       <path d="M50 76 Q100 62 150 76" fill="none" stroke="#e5678a" stroke-width="10" stroke-linecap="round"/>
       <path d="M42 126 Q100 140 158 126" fill="none" stroke="#e5678a" stroke-width="10" stroke-linecap="round"/>
       <circle cx="76" cy="66" r="10" fill="#ffc2d1"/>
-      <!-- metade da frente do anel -->
       <path d="M6 112 A94 24 0 0 0 194 112" fill="none" stroke="#1a1033" stroke-width="14"/>
       <path d="M6 112 A94 24 0 0 0 194 112" fill="none" stroke="#ffd43b" stroke-width="7"/>
     </svg>
@@ -34,31 +32,19 @@
       <circle cx="75" cy="72" r="14" fill="#f5cf6b" stroke="#1a1033" stroke-width="3"/>
       <circle cx="48" cy="82" r="6" fill="#f5cf6b" stroke="#1a1033" stroke-width="3"/>
     </svg>
-
-    <svg class="deco ovni" viewBox="0 0 140 80">
-      <ellipse cx="70" cy="32" rx="28" ry="24" fill="#a5f3fc" stroke="#1a1033" stroke-width="4"/>
-      <ellipse cx="70" cy="50" rx="64" ry="18" fill="#9775fa" stroke="#1a1033" stroke-width="4"/>
-      <circle cx="36" cy="52" r="5" fill="#ffd43b" stroke="#1a1033" stroke-width="2"/>
-      <circle cx="70" cy="56" r="5" fill="#ffd43b" stroke="#1a1033" stroke-width="2"/>
-      <circle cx="104" cy="52" r="5" fill="#ffd43b" stroke="#1a1033" stroke-width="2"/>
-    </svg>
   </div>
 
-  <!-- Tela de login -->
+  <!-- ================= Tela de login ================= -->
   <section id="tela-login" class="tela-login" hidden>
     <form id="form-login" class="caixa-login">
       <div class="logo logo-login">
-        <svg class="foguete" viewBox="0 0 64 64" aria-hidden="true"><use href="#icone-foguete"/></svg>
+        <span class="foguete" data-icone="foguete"></span>
         <h1>MASTER</h1>
       </div>
       <p class="subtitulo">Comercial 2</p>
       <label>Usuário
         <select name="usuario" required>
           <option value="">Selecione...</option>
-          <option>Libraga</option>
-          <option>Paulinho</option>
-          <option>Nico</option>
-          <option>Dani</option>
         </select>
       </label>
       <label>Senha
@@ -69,109 +55,394 @@
     </form>
   </section>
 
-  <!-- Sistema (depois do login) -->
+  <!-- ================= Sistema (depois do login) ================= -->
   <div id="tela-app" hidden>
     <header class="topo">
-      <div class="logo">
-        <svg class="foguete" viewBox="0 0 64 64" aria-hidden="true"><use href="#icone-foguete"/></svg>
-        <h1>MASTER</h1>
+      <div class="topo-esquerda">
+        <button id="btn-menu" class="btn-terra" title="Abrir menu" aria-label="Abrir menu">
+          <span data-icone="terra"></span>
+        </button>
+        <div class="logo">
+          <span class="foguete" data-icone="foguete"></span>
+          <h1>MASTER</h1>
+        </div>
+        <button id="btn-chat" class="btn-chat" title="Chat Comercial 2" aria-label="Abrir chat">
+          <span data-icone="chat"></span>
+          <span id="badge-chat" class="badge-chat" hidden>0</span>
+        </button>
+        <div id="popup-chat" class="popup-chat" hidden></div>
       </div>
-      <nav class="abas">
-        <button class="aba ativa" data-visao="meus">Meus leads</button>
-        <button class="aba" data-visao="geral">Visão Geral - Comercial 2</button>
-      </nav>
       <div class="topo-direita">
-        <span class="ola">Olá, <b id="nome-usuario"></b>!</span>
-        <button id="btn-senha" class="btn btn-pequeno">Trocar senha</button>
-        <button id="btn-sair" class="btn btn-pequeno">Sair</button>
+        <button id="btn-perfil" class="btn-perfil" title="Meu perfil">
+          <span id="avatar-topo" class="avatar-caixa"></span>
+          <span class="ola">Olá, <b id="nome-usuario"></b>!</span>
+        </button>
         <button id="btn-novo" class="btn btn-primario">+ Novo lead</button>
       </div>
     </header>
 
-    <p id="aviso-visao" class="aviso-visao" hidden>
-      Aqui você vê os leads de toda a equipe. Pode editar e mover para ajudar um colega; só o dono pode excluir.
-    </p>
+    <!-- Menu lateral -->
+    <div id="menu-fundo" class="menu-fundo" hidden></div>
+    <aside id="menu" class="menu" aria-hidden="true">
+      <div class="menu-topo">
+        <span data-icone="terra"></span>
+        <b>Menu</b>
+        <button id="btn-fechar-menu" class="btn-x" aria-label="Fechar menu">✕</button>
+      </div>
+      <nav>
+        <button class="menu-item" data-pagina="kanban">🗂️ Kanban</button>
+        <button class="menu-item" data-pagina="relatorios">📊 Relatórios</button>
+        <button class="menu-item" data-pagina="chat">💬 Chat Comercial 2</button>
+        <button class="menu-item" data-pagina="participantes">👩‍🚀 Participantes</button>
+        <button class="menu-item" data-pagina="feedbacks">💡 Feedbacks</button>
+        <button class="menu-item" data-pagina="ajuda">❓ Ajuda</button>
+        <hr>
+        <button class="menu-item" id="menu-perfil">🙂 Meu perfil</button>
+        <button class="menu-item" id="menu-sair">🚪 Sair</button>
+      </nav>
+    </aside>
 
-    <main id="quadro" class="quadro"></main>
+    <!-- ---------- Página: Kanban ---------- -->
+    <section id="pagina-kanban" class="pagina">
+      <div class="barra-kanban">
+        <nav class="abas">
+          <button class="aba ativa" data-visao="meus">Meus leads</button>
+          <button class="aba" data-visao="geral">Visão Geral - Comercial 2</button>
+          <button class="aba" data-visao="meus_descartados">Meus descartados</button>
+          <button class="aba" data-visao="descartados">Descartados geral</button>
+        </nav>
+        <div class="legenda" id="legenda">
+          <span class="leg leg-atrasada">Atividade atrasada</span>
+          <span class="leg leg-hoje">Atividade hoje</span>
+          <span class="leg leg-futura">Atividade futura</span>
+        </div>
+      </div>
+      <p id="aviso-visao" class="aviso-visao" hidden></p>
+      <main id="quadro" class="quadro"></main>
+    </section>
+
+    <!-- ---------- Página: Relatórios ---------- -->
+    <section id="pagina-relatorios" class="pagina pagina-conteudo" hidden>
+      <div class="painel">
+        <h2>📊 Relatórios</h2>
+        <div class="filtros">
+          <label>Pessoa
+            <select id="rel-pessoa"></select>
+          </label>
+          <label>Leads criados
+            <select id="rel-periodo">
+              <option value="7">Últimos 7 dias</option>
+              <option value="30">Últimos 30 dias</option>
+              <option value="90">Últimos 90 dias</option>
+              <option value="0" selected>Desde o início</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div id="relatorios"></div>
+    </section>
+
+    <!-- ---------- Página: Chat ---------- -->
+    <section id="pagina-chat" class="pagina pagina-chat" hidden>
+      <div class="chat">
+        <aside class="chat-lista">
+          <div class="chat-lista-topo">
+            <b>Conversas</b>
+            <button id="btn-nova-conversa" class="btn btn-pequeno">+ Nova</button>
+          </div>
+          <div id="lista-conversas"></div>
+        </aside>
+        <div class="chat-janela">
+          <div id="chat-vazio" class="chat-vazio">Escolha uma conversa ao lado 👈</div>
+          <div id="chat-aberto" hidden>
+            <div class="chat-cabecalho">
+              <button id="btn-voltar-chat" class="btn-voltar" aria-label="Voltar">←</button>
+              <span id="chat-foto" class="avatar-caixa"></span>
+              <div class="chat-titulo">
+                <b id="chat-nome"></b>
+                <small id="chat-membros"></small>
+              </div>
+              <button id="btn-editar-grupo" class="btn btn-pequeno" hidden>Editar grupo</button>
+              <button id="btn-sair-grupo" class="btn btn-pequeno btn-perigo" hidden>Sair</button>
+            </div>
+            <div id="chat-mensagens" class="chat-mensagens"></div>
+            <form id="chat-form" class="chat-form">
+              <button type="button" id="btn-anexar-lead" class="btn-redondo" title="Compartilhar lead">📇</button>
+              <input id="chat-texto" type="text" placeholder="Digite uma mensagem" autocomplete="off" maxlength="5000">
+              <button type="button" id="btn-gravar" class="btn-redondo" title="Gravar áudio">🎤</button>
+              <button type="submit" class="btn-redondo btn-enviar" title="Enviar">➤</button>
+            </form>
+            <div id="gravando" class="gravando" hidden>
+              <span class="ponto-gravando"></span>
+              <span>Gravando… <b id="tempo-gravacao">0:00</b></span>
+              <span class="espaco"></span>
+              <button type="button" id="btn-cancelar-audio" class="btn btn-pequeno">Cancelar</button>
+              <button type="button" id="btn-enviar-audio" class="btn btn-pequeno btn-primario">Enviar áudio</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- Página: Participantes ---------- -->
+    <section id="pagina-participantes" class="pagina pagina-conteudo" hidden>
+      <div class="painel">
+        <div class="painel-topo">
+          <h2>👩‍🚀 Participantes</h2>
+          <button id="btn-criar-grupo" class="btn btn-primario">+ Criar grupo</button>
+        </div>
+        <div id="lista-participantes" class="participantes"></div>
+      </div>
+    </section>
+
+    <!-- ---------- Página: Feedbacks ---------- -->
+    <section id="pagina-feedbacks" class="pagina pagina-conteudo" hidden>
+      <div class="painel">
+        <h2>💡 Feedbacks</h2>
+        <p class="dica">Achou algo que pode melhorar? Tem uma ideia? Conte aqui, todo o time vê.</p>
+        <form id="form-feedback" class="form-feedback">
+          <label>Tipo
+            <select name="tipo" required></select>
+          </label>
+          <label class="crescer">Seu feedback
+            <textarea name="texto" rows="3" required maxlength="5000"></textarea>
+          </label>
+          <p id="feedback-erro" class="erro" hidden></p>
+          <button type="submit" class="btn btn-primario">Enviar feedback</button>
+        </form>
+      </div>
+      <div id="lista-feedbacks"></div>
+    </section>
+
+    <!-- ---------- Página: Ajuda ---------- -->
+    <section id="pagina-ajuda" class="pagina pagina-conteudo" hidden>
+      <div class="painel ajuda" id="conteudo-ajuda">Carregando…</div>
+    </section>
   </div>
 
-  <!-- Desenho do foguete, reaproveitado no login e no topo -->
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <symbol id="icone-foguete" viewBox="0 0 64 64">
-      <path d="M22 44 L12 54 L14 42 Z" fill="#ff6b6b" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
-      <path d="M42 44 L52 54 L50 42 Z" fill="#ff6b6b" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
-      <path d="M32 4 C44 14 46 32 42 46 L22 46 C18 32 20 14 32 4 Z" fill="#f8f9fa" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
-      <circle cx="32" cy="24" r="6" fill="#74c0fc" stroke="#1a1033" stroke-width="3"/>
-      <path d="M26 48 Q32 62 38 48 Z" fill="#ffd43b" stroke="#1a1033" stroke-width="3" stroke-linejoin="round"/>
-    </symbol>
-  </svg>
+  <!-- ================= Janelas (diálogos) ================= -->
 
-  <dialog id="modal">
+  <!-- Lead -->
+  <dialog id="modal" class="modal-lead">
     <form id="form-lead" method="dialog">
-      <h2 id="modal-titulo">Novo lead</h2>
-
-      <label>Nome *
-        <input type="text" name="nome" required maxlength="200">
-      </label>
-
-      <div class="linha-dupla">
-        <label>Telefone
-          <input type="tel" name="telefone" maxlength="50">
-        </label>
-        <label>E-mail
-          <input type="email" name="email" maxlength="200">
-        </label>
+      <div class="modal-topo">
+        <h2 id="modal-titulo">Novo lead</h2>
+        <button type="button" class="btn-x" data-fechar="modal" aria-label="Fechar">✕</button>
       </div>
+      <p id="aviso-descartado" class="aviso-descartado" hidden></p>
+      <div class="lead-grade">
+        <div class="lead-dados">
+          <label>Nome *
+            <input type="text" name="nome" required maxlength="200">
+          </label>
+          <div class="linha-dupla">
+            <label>Telefone
+              <input type="tel" name="telefone" maxlength="100">
+            </label>
+            <label>E-mail
+              <input type="email" name="email" maxlength="200">
+            </label>
+          </div>
+          <label>Conta
+            <input type="text" name="conta" maxlength="200">
+          </label>
+          <div class="linha-dupla">
+            <label>Origem <span class="obrig-funil">*</span>
+              <select name="origem"></select>
+            </label>
+            <label id="campo-campanha" hidden>Qual campanha? *
+              <input type="text" name="origem_detalhe" maxlength="200" placeholder="Ex.: Black Friday">
+            </label>
+          </div>
+          <fieldset>
+            <legend>Produtos de interesse <span class="obrig-funil">*</span> <small>(pode marcar mais de um)</small></legend>
+            <div id="opcoes-produtos" class="opcoes-produtos"></div>
+          </fieldset>
+          <div class="linha-dupla">
+            <label id="campo-etapa">Etapa
+              <select name="coluna"></select>
+            </label>
+            <label id="campo-valor">Valor da proposta (R$)
+              <input type="text" name="valor" inputmode="decimal" placeholder="Ex.: 1.500,00">
+            </label>
+          </div>
+        </div>
 
-      <label>Conta
-        <input type="text" name="conta" maxlength="200">
-      </label>
+        <div class="lead-lado">
+          <section class="bloco">
+            <h3>⏰ Atividades</h3>
+            <div id="lista-atividades"></div>
+            <div class="nova-atividade">
+              <input type="text" id="atv-descricao" placeholder="O que fazer? Ex.: Ligar para apresentar" maxlength="500">
+              <div class="linha-atividade">
+                <input type="text" id="atv-data" placeholder="DD/MM/AAAA" inputmode="numeric" maxlength="10">
+                <input type="text" id="atv-hora" placeholder="HH:MM" inputmode="numeric" maxlength="5">
+                <button type="button" id="btn-add-atividade" class="btn btn-pequeno btn-primario">Adicionar</button>
+              </div>
+              <div class="atalhos-data">
+                <button type="button" class="chip" data-dias="0">Hoje</button>
+                <button type="button" class="chip" data-dias="1">Amanhã</button>
+                <button type="button" class="chip" data-dias="7">Em 1 semana</button>
+              </div>
+              <p id="atv-erro" class="erro" hidden></p>
+            </div>
+          </section>
 
-      <fieldset>
-        <legend>Produtos de interesse * <small>(pode marcar mais de um)</small></legend>
-        <div id="opcoes-produtos" class="opcoes-produtos"></div>
-      </fieldset>
+          <section class="bloco">
+            <h3>📝 Anotações</h3>
+            <div class="nova-anotacao">
+              <textarea id="nova-anotacao" rows="2" placeholder="Escreva uma anotação…" maxlength="5000"></textarea>
+              <button type="button" id="btn-add-anotacao" class="btn btn-pequeno btn-primario">Registrar</button>
+            </div>
+            <div id="lista-anotacoes"></div>
+          </section>
 
-      <label>Etapa
-        <select name="coluna"></select>
-      </label>
-
-      <label>Observações
-        <textarea name="observacoes" rows="4"></textarea>
-      </label>
+          <section class="bloco">
+            <h3>✅ Registro de atividades concluídas</h3>
+            <div id="lista-concluidas"></div>
+          </section>
+        </div>
+      </div>
 
       <p id="form-erro" class="erro" hidden></p>
 
       <div class="acoes">
         <button type="button" id="btn-excluir" class="btn btn-perigo" hidden>Excluir</button>
+        <button type="button" id="btn-descartar" class="btn btn-descartar" hidden>Descartar</button>
+        <button type="button" id="btn-restaurar" class="btn" hidden>Restaurar</button>
         <span class="espaco"></span>
-        <button type="button" id="btn-cancelar" class="btn">Cancelar</button>
+        <button type="button" class="btn" data-fechar="modal">Cancelar</button>
         <button type="submit" class="btn btn-primario">Salvar</button>
       </div>
     </form>
   </dialog>
 
-  <dialog id="modal-senha">
+  <!-- Descartar -->
+  <dialog id="modal-descartar">
+    <form id="form-descartar">
+      <h2>Descartar lead</h2>
+      <p class="dica" id="descartar-nome"></p>
+      <fieldset>
+        <legend>Qual o motivo? *</legend>
+        <div id="opcoes-motivo" class="opcoes-motivo"></div>
+      </fieldset>
+      <p id="descartar-erro" class="erro" hidden></p>
+      <div class="acoes">
+        <span class="espaco"></span>
+        <button type="button" class="btn" data-fechar="modal-descartar">Cancelar</button>
+        <button type="submit" class="btn btn-descartar">Descartar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Valor da proposta ao mover para "Proposta enviada" -->
+  <dialog id="modal-valor">
+    <form id="form-valor">
+      <h2>💰 Valor da proposta</h2>
+      <p class="dica" id="valor-nome"></p>
+      <label>Valor (R$)
+        <input type="text" name="valor" inputmode="decimal" placeholder="Ex.: 1.500,00">
+      </label>
+      <p id="valor-erro" class="erro" hidden></p>
+      <div class="acoes">
+        <span class="espaco"></span>
+        <button type="button" id="btn-valor-pular" class="btn">Agora não</button>
+        <button type="submit" class="btn btn-primario">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Perfil -->
+  <dialog id="modal-perfil">
+    <div class="modal-topo">
+      <h2>Meu perfil</h2>
+      <button type="button" class="btn-x" data-fechar="modal-perfil" aria-label="Fechar">✕</button>
+    </div>
+    <div class="perfil-foto">
+      <span id="avatar-perfil" class="avatar-caixa avatar-grande"></span>
+      <div class="perfil-botoes">
+        <button type="button" id="btn-escolher-foto" class="btn btn-primario">📷 Escolher foto do computador</button>
+        <button type="button" id="btn-remover-foto" class="btn">Usar astronauta padrão</button>
+      </div>
+    </div>
     <form id="form-senha">
-      <h2>Trocar senha</h2>
+      <h3>Trocar senha</h3>
       <label>Senha atual
         <input type="password" name="atual" required autocomplete="current-password">
       </label>
-      <label>Nova senha <small>(mínimo 8 caracteres)</small>
-        <input type="password" name="nova" required minlength="8" autocomplete="new-password">
-      </label>
-      <label>Repita a nova senha
-        <input type="password" name="confirma" required minlength="8" autocomplete="new-password">
-      </label>
+      <div class="linha-dupla">
+        <label>Nova senha <small>(mín. 8)</small>
+          <input type="password" name="nova" required minlength="8" autocomplete="new-password">
+        </label>
+        <label>Repita a nova senha
+          <input type="password" name="confirma" required minlength="8" autocomplete="new-password">
+        </label>
+      </div>
       <p id="senha-erro" class="erro" hidden></p>
       <div class="acoes">
+        <button type="button" id="btn-sair-perfil" class="btn">🚪 Sair do sistema</button>
         <span class="espaco"></span>
-        <button type="button" id="btn-senha-cancelar" class="btn">Cancelar</button>
+        <button type="submit" class="btn btn-primario">Salvar nova senha</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Grupo -->
+  <dialog id="modal-grupo">
+    <form id="form-grupo">
+      <h2 id="grupo-titulo">Criar grupo</h2>
+      <div class="perfil-foto">
+        <span id="grupo-foto" class="avatar-caixa avatar-grande"></span>
+        <div class="perfil-botoes">
+          <button type="button" id="btn-grupo-foto" class="btn">📷 Foto do grupo</button>
+          <button type="button" id="btn-grupo-sem-foto" class="btn btn-pequeno">Sem foto</button>
+        </div>
+      </div>
+      <label>Nome do grupo *
+        <input type="text" name="nome" required maxlength="80">
+      </label>
+      <fieldset>
+        <legend>Participantes *</legend>
+        <div id="grupo-membros" class="opcoes-produtos"></div>
+      </fieldset>
+      <p id="grupo-erro" class="erro" hidden></p>
+      <div class="acoes">
+        <span class="espaco"></span>
+        <button type="button" class="btn" data-fechar="modal-grupo">Cancelar</button>
         <button type="submit" class="btn btn-primario">Salvar</button>
       </div>
     </form>
   </dialog>
 
+  <!-- Nova conversa -->
+  <dialog id="modal-nova-conversa">
+    <div class="modal-topo">
+      <h2>Nova conversa</h2>
+      <button type="button" class="btn-x" data-fechar="modal-nova-conversa" aria-label="Fechar">✕</button>
+    </div>
+    <div id="nova-conversa-lista" class="lista-escolha"></div>
+    <div class="acoes">
+      <button type="button" id="btn-nova-conversa-grupo" class="btn btn-primario">+ Criar grupo</button>
+    </div>
+  </dialog>
+
+  <!-- Escolher lead para compartilhar no chat -->
+  <dialog id="modal-escolher-lead">
+    <div class="modal-topo">
+      <h2>Compartilhar lead</h2>
+      <button type="button" class="btn-x" data-fechar="modal-escolher-lead" aria-label="Fechar">✕</button>
+    </div>
+    <input type="search" id="busca-lead" placeholder="Buscar por nome, telefone, conta ou dono…">
+    <div id="lista-escolher-lead" class="lista-escolha"></div>
+  </dialog>
+
+  <input type="file" id="arquivo-foto" accept="image/*" hidden>
+  <div id="aviso-copiado" class="aviso-copiado" hidden>Copiado!</div>
+
+  <script src="icones.js"></script>
   <script src="app.js"></script>
+  <script src="kanban.js"></script>
+  <script src="chat.js"></script>
+  <script src="paginas.js"></script>
 </body>
 </html>

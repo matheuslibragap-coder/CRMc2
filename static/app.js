@@ -1,342 +1,328 @@
-// MASTER - lógica da interface
+// MASTER - núcleo da interface: login, menu, páginas, perfil e utilidades
 
-let COLUNAS = [];
-let PRODUTOS = [];
-let USUARIOS = [];
-let usuario = null; // quem está logado
-let visao = "meus"; // "meus" ou "geral"
-let leads = [];
-let leadEditando = null; // id do lead aberto no formulário (null = novo)
+const estado = {
+  usuario: null,
+  admin: false,
+  usuarios: [],   // [{nome, foto_versao}]
+  config: {},     // colunas, produtos, origens, motivos...
+  pagina: "kanban",
+};
 
 const telaLogin = document.getElementById("tela-login");
 const telaApp = document.getElementById("tela-app");
-const quadro = document.getElementById("quadro");
-const modal = document.getElementById("modal");
-const form = document.getElementById("form-lead");
-const formErro = document.getElementById("form-erro");
-const btnExcluir = document.getElementById("btn-excluir");
 
-// ---------- comunicação com o servidor ----------
+// ---------- utilidades ----------
 async function api(metodo, url, corpo) {
   const resp = await fetch(url, {
     method: metodo,
     headers: { "Content-Type": "application/json" },
-    body: corpo ? JSON.stringify(corpo) : undefined,
+    body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
   });
   const dados = await resp.json().catch(() => ({}));
-  if (resp.status === 401 && usuario) {
-    // Sessão expirou: volta para a tela de login
-    mostrarLogin();
-  }
+  if (resp.status === 401 && estado.usuario) mostrarLogin();
   if (!resp.ok) throw new Error(dados.erro || "Erro ao falar com o servidor.");
   return dados;
 }
 
+function el(tag, classe, texto) {
+  const e = document.createElement(tag);
+  if (classe) e.className = classe;
+  if (texto !== undefined && texto !== null) e.textContent = texto;
+  return e;
+}
+
+function mostrarErro(elemento, mensagem) {
+  elemento.textContent = mensagem;
+  elemento.hidden = !mensagem;
+}
+
+const dois = (n) => String(n).padStart(2, "0");
+
+// "2026-09-23T14:05:00" -> "23/09/2026 14:05"
+function formatarDataHora(iso) {
+  if (!iso) return "";
+  const [d, h = ""] = iso.split("T");
+  return `${formatarData(d)} ${h.slice(0, 5)}`.trim();
+}
+
+// "2026-09-23" -> "23/09/2026"
+function formatarData(iso) {
+  const [a, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}/${a}`;
+}
+
+function hojeISO(deslocamentoDias = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + deslocamentoDias);
+  return `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}`;
+}
+
+const formatoReal = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+function formatarReais(centavos) {
+  return formatoReal.format((centavos || 0) / 100);
+}
+
+// Aceita "1.500", "1.500,50", "1500.50", "R$ 500" -> centavos (ou null se vazio)
+function lerReais(textoValor) {
+  let t = (textoValor || "").replace(/R\$|\s/g, "");
+  if (!t) return null;
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  else if (!/\.\d{1,2}$/.test(t)) t = t.replace(/\./g, "");
+  const n = Number(t);
+  if (!isFinite(n) || n < 0) return NaN;
+  return Math.round(n * 100);
+}
+
+function valorParaCampo(centavos) {
+  if (centavos === null || centavos === undefined) return "";
+  return (centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Máscaras dos campos de data (DD/MM/AAAA) e hora (HH:MM)
+function mascaraData(input) {
+  input.addEventListener("input", () => {
+    const d = input.value.replace(/\D/g, "").slice(0, 8);
+    input.value = [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter(Boolean).join("/");
+  });
+}
+function mascaraHora(input) {
+  input.addEventListener("input", () => {
+    const d = input.value.replace(/\D/g, "").slice(0, 4);
+    input.value = d.length > 2 ? `${d.slice(0, 2)}:${d.slice(2)}` : d;
+  });
+}
+
+let timerCopiado;
+async function copiar(textoCopia) {
+  const aviso = document.getElementById("aviso-copiado");
+  try {
+    await navigator.clipboard.writeText(textoCopia);
+    aviso.textContent = "Copiado!";
+  } catch (e) {
+    aviso.textContent = "Não foi possível copiar. Selecione o texto e use Ctrl+C.";
+  }
+  aviso.hidden = false;
+  clearTimeout(timerCopiado);
+  timerCopiado = setTimeout(() => (aviso.hidden = true), 1600);
+}
+
+// ---------- fotos / avatares ----------
+function dadosUsuario(nome) {
+  return estado.usuarios.find((u) => u.nome === nome) || { nome, foto_versao: 0 };
+}
+
+function avatar(nome, classeExtra = "") {
+  const caixa = el("span", `avatar ${classeExtra}`);
+  caixa.title = nome;
+  const u = dadosUsuario(nome);
+  if (u.foto_versao > 0) {
+    const img = el("img");
+    img.src = `/api/foto/usuario/${encodeURIComponent(nome)}?v=${u.foto_versao}`;
+    img.alt = nome;
+    // Se a foto não carregar, volta para o astronauta
+    img.onerror = () => (caixa.innerHTML = svgAstronauta(CORES_USUARIO[nome] || "#adb5bd"));
+    caixa.append(img);
+  } else {
+    caixa.innerHTML = svgAstronauta(CORES_USUARIO[nome] || "#adb5bd");
+  }
+  return caixa;
+}
+
+function preencherAvatar(caixa, nome, classeExtra) {
+  caixa.innerHTML = "";
+  caixa.append(avatar(nome, classeExtra));
+}
+
+// Abre o seletor de arquivos e devolve a imagem recortada em quadrado (256x256, JPEG)
+function escolherImagem() {
+  return new Promise((resolve) => {
+    const input = document.getElementById("arquivo-foto");
+    input.value = "";
+    input.onchange = () => {
+      const arquivo = input.files[0];
+      if (!arquivo) return resolve(null);
+      const img = new Image();
+      const url = URL.createObjectURL(arquivo);
+      img.onload = () => {
+        const lado = Math.min(img.width, img.height);
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 256;
+        canvas.getContext("2d").drawImage(
+          img, (img.width - lado) / 2, (img.height - lado) / 2, lado, lado, 0, 0, 256, 256);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        alert("Não consegui abrir essa imagem. Tente uma foto em JPG ou PNG.");
+        resolve(null);
+      };
+      img.src = url;
+    };
+    input.click();
+  });
+}
+
+async function trocarFotoDe(nome, imagem) {
+  const dados = await api("PUT", `/api/usuarios/${encodeURIComponent(nome)}/foto`, { imagem });
+  estado.usuarios = dados.usuarios;
+  atualizarAvatares();
+}
+
+function atualizarAvatares() {
+  preencherAvatar(document.getElementById("avatar-topo"), estado.usuario);
+  preencherAvatar(document.getElementById("avatar-perfil"), estado.usuario, "avatar-grande");
+  if (estado.pagina === "kanban") desenhar();
+  if (estado.pagina === "participantes") desenharParticipantes();
+  if (estado.pagina === "chat") redesenharChat();
+}
+
 // ---------- login ----------
+async function carregarNomesLogin() {
+  const select = document.querySelector("#form-login select[name=usuario]");
+  try {
+    const { usuarios } = await api("GET", "/api/nomes");
+    select.length = 1;
+    usuarios.forEach((u) => select.append(new Option(u, u)));
+  } catch (e) { /* mantém a lista vazia; o erro aparece ao tentar entrar */ }
+}
+
 function mostrarLogin() {
-  usuario = null;
-  modal.open && modal.close();
+  estado.usuario = null;
+  document.querySelectorAll("dialog[open]").forEach((d) => d.close());
+  fecharMenu();
   telaApp.hidden = true;
   telaLogin.hidden = false;
   document.getElementById("form-login").senha.value = "";
+  carregarNomesLogin();
 }
 
 async function iniciar() {
+  aplicarIcones();
   try {
-    const dados = await api("GET", "/api/eu");
-    entrarNoSistema(dados);
+    entrarNoSistema(await api("GET", "/api/eu"));
   } catch (e) {
     mostrarLogin();
   }
 }
 
 function entrarNoSistema(dados) {
-  usuario = dados.usuario;
-  COLUNAS = dados.colunas;
-  PRODUTOS = dados.produtos;
-  USUARIOS = dados.usuarios;
-  document.getElementById("nome-usuario").textContent = usuario;
+  estado.usuario = dados.usuario;
+  estado.admin = dados.admin;
+  estado.usuarios = dados.usuarios;
+  estado.config = dados;
+  document.getElementById("nome-usuario").textContent = estado.usuario;
   telaLogin.hidden = true;
   telaApp.hidden = false;
-  preencherSelects();
+  preencherAvatar(document.getElementById("avatar-topo"), estado.usuario);
+  prepararFormularioLead();
+  prepararFeedbacks();
+  irPara("kanban");
   trocarVisao("meus");
+  iniciarAvisosChat();
 }
 
 document.getElementById("form-login").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const f = ev.target;
   const erroLogin = document.getElementById("login-erro");
-  erroLogin.hidden = true;
+  mostrarErro(erroLogin, "");
   try {
     await api("POST", "/api/login", { usuario: f.usuario.value, senha: f.senha.value });
     entrarNoSistema(await api("GET", "/api/eu"));
   } catch (e) {
-    erroLogin.textContent = e.message;
-    erroLogin.hidden = false;
+    mostrarErro(erroLogin, e.message);
   }
 });
 
-document.getElementById("btn-sair").onclick = async () => {
+async function sair() {
   await api("POST", "/api/logout").catch(() => {});
+  pararAvisosChat();
   mostrarLogin();
-};
+}
 
-// ---------- abas ----------
-document.querySelectorAll(".aba").forEach((aba) => {
-  aba.onclick = () => trocarVisao(aba.dataset.visao);
+// ---------- menu lateral e páginas ----------
+const menu = document.getElementById("menu");
+const menuFundo = document.getElementById("menu-fundo");
+
+function abrirMenu() {
+  menu.classList.add("aberto");
+  menu.setAttribute("aria-hidden", "false");
+  menuFundo.hidden = false;
+}
+function fecharMenu() {
+  menu.classList.remove("aberto");
+  menu.setAttribute("aria-hidden", "true");
+  menuFundo.hidden = true;
+}
+
+document.getElementById("btn-menu").onclick = abrirMenu;
+document.getElementById("btn-fechar-menu").onclick = fecharMenu;
+menuFundo.onclick = fecharMenu;
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") fecharMenu(); });
+
+document.querySelectorAll(".menu-item[data-pagina]").forEach((item) => {
+  item.onclick = () => { fecharMenu(); irPara(item.dataset.pagina); };
+});
+document.getElementById("menu-perfil").onclick = () => { fecharMenu(); abrirPerfil(); };
+document.getElementById("menu-sair").onclick = () => { fecharMenu(); sair(); };
+document.getElementById("btn-chat").onclick = () => irPara("chat");
+
+function irPara(pagina) {
+  estado.pagina = pagina;
+  document.querySelectorAll(".pagina").forEach((p) => (p.hidden = p.id !== `pagina-${pagina}`));
+  document.querySelectorAll(".menu-item[data-pagina]").forEach((i) =>
+    i.classList.toggle("ativo", i.dataset.pagina === pagina));
+  document.getElementById("btn-chat").classList.toggle("ativo", pagina === "chat");
+  if (pagina === "kanban") carregarLeads();
+  if (pagina === "relatorios") abrirRelatorios();
+  if (pagina === "chat") abrirChat();
+  if (pagina === "participantes") abrirParticipantes();
+  if (pagina === "feedbacks") carregarFeedbacks();
+  if (pagina === "ajuda") abrirAjuda();
+  window.scrollTo(0, 0);
+}
+
+// Botões "fechar/cancelar" de qualquer janela
+document.querySelectorAll("[data-fechar]").forEach((b) => {
+  b.addEventListener("click", () => document.getElementById(b.dataset.fechar).close());
 });
 
-async function trocarVisao(nova) {
-  visao = nova;
-  document.querySelectorAll(".aba").forEach((a) => a.classList.toggle("ativa", a.dataset.visao === visao));
-  document.getElementById("aviso-visao").hidden = visao !== "geral";
-  await carregarLeads();
-}
-
-async function carregarLeads() {
-  try {
-    const dados = await api("GET", `/api/leads?visao=${visao}`);
-    leads = dados.leads;
-    desenhar();
-  } catch (e) {
-    if (usuario) quadro.textContent = "Não foi possível carregar os leads. Tente recarregar a página.";
-  }
-}
-
-// ---------- desenho do quadro ----------
-function formatarData(iso) {
-  const [a, m, d] = iso.split("-");
-  return `${d}/${m}/${a}`;
-}
-
-function el(tag, classe, texto) {
-  const e = document.createElement(tag);
-  if (classe) e.className = classe;
-  if (texto !== undefined) e.textContent = texto;
-  return e;
-}
-
-// Ícone de planetinha no topo de cada coluna
-const ICONE_COLUNA =
-  '<svg viewBox="0 0 24 24" aria-hidden="true">' +
-  '<circle cx="12" cy="12" r="7" fill="#fff" stroke="#1a1033" stroke-width="2"/>' +
-  '<ellipse cx="12" cy="13" rx="11" ry="3.5" fill="none" stroke="#1a1033" stroke-width="2"/></svg>';
-
-function tagProduto(produto) {
-  return el("span", `tag p-${PRODUTOS.indexOf(produto)}`, produto);
-}
-
-function linhaInfo(rotulo, valor) {
-  const linha = el("div", "card-linha");
-  linha.append(el("b", "", rotulo + ": "), valor);
-  return linha;
-}
-
-function criarCard(lead) {
-  const card = el("div", "card");
-  card.draggable = true;
-  card.dataset.id = lead.id;
-
-  if (visao === "geral") {
-    const dono = el("div", `dono d-${USUARIOS.indexOf(lead.dono)}`, lead.dono);
-    if (lead.dono === usuario) dono.textContent += " (você)";
-    card.append(dono);
-  }
-  card.append(el("div", "card-nome", lead.nome));
-  if (lead.telefone) card.append(linhaInfo("Tel", lead.telefone));
-  if (lead.email) card.append(linhaInfo("E-mail", lead.email));
-  if (lead.conta) card.append(linhaInfo("Conta", lead.conta));
-  const tags = el("div", "tags");
-  lead.produtos.forEach((p) => tags.append(tagProduto(p)));
-  card.append(tags);
-  if (lead.observacoes) card.append(el("div", "card-obs", lead.observacoes));
-
-  const rodape = el("div", "card-rodape");
-  rodape.append(el("span", "card-data", "Criado em " + formatarData(lead.data_criacao)));
-  const botoes = el("div", "card-botoes");
-  const bEditar = el("button", "", "Editar");
-  bEditar.onclick = () => abrirFormulario(lead);
-  botoes.append(bEditar);
-  if (lead.dono === usuario) {
-    const bExcluir = el("button", "excluir", "Excluir");
-    bExcluir.onclick = () => excluir(lead);
-    botoes.append(bExcluir);
-  }
-  rodape.append(botoes);
-  card.append(rodape);
-
-  card.addEventListener("dragstart", (ev) => {
-    ev.dataTransfer.setData("text/plain", String(lead.id));
-    ev.dataTransfer.effectAllowed = "move";
-    card.classList.add("arrastando");
-  });
-  card.addEventListener("dragend", () => card.classList.remove("arrastando"));
-  return card;
-}
-
-function desenhar() {
-  quadro.innerHTML = "";
-  for (const nomeColuna of COLUNAS) {
-    const doColuna = leads.filter((l) => l.coluna === nomeColuna);
-
-    const coluna = el("section", "coluna");
-    const topo = el("div", "coluna-topo");
-    const titulo = el("span", "coluna-titulo");
-    titulo.innerHTML = ICONE_COLUNA;
-    titulo.append(nomeColuna);
-    topo.append(titulo, el("span", "contador", doColuna.length));
-    const cards = el("div", "cards");
-    doColuna.forEach((l) => cards.append(criarCard(l)));
-    coluna.append(topo, cards);
-
-    coluna.addEventListener("dragover", (ev) => {
-      ev.preventDefault();
-      ev.dataTransfer.dropEffect = "move";
-      coluna.classList.add("alvo");
-    });
-    coluna.addEventListener("dragleave", (ev) => {
-      if (!coluna.contains(ev.relatedTarget)) coluna.classList.remove("alvo");
-    });
-    coluna.addEventListener("drop", (ev) => {
-      ev.preventDefault();
-      coluna.classList.remove("alvo");
-      moverLead(Number(ev.dataTransfer.getData("text/plain")), nomeColuna);
-    });
-
-    quadro.append(coluna);
-  }
-}
-
-async function moverLead(id, novaColuna) {
-  const lead = leads.find((l) => l.id === id);
-  if (!lead || lead.coluna === novaColuna) return;
-  const anterior = lead.coluna;
-  lead.coluna = novaColuna;
-  desenhar();
-  try {
-    await api("PUT", `/api/leads/${id}`, { coluna: novaColuna });
-  } catch (e) {
-    lead.coluna = anterior;
-    desenhar();
-    alert("Não foi possível mover o lead: " + e.message);
-  }
-}
-
-// ---------- formulário de lead ----------
-function preencherSelects() {
-  const caixa = document.getElementById("opcoes-produtos");
-  caixa.innerHTML = "";
-  PRODUTOS.forEach((p, i) => {
-    const opcao = el("label", `opcao-produto p-${i}`);
-    const check = document.createElement("input");
-    check.type = "checkbox";
-    check.name = "produtos";
-    check.value = p;
-    opcao.append(check, el("span", "", p));
-    caixa.append(opcao);
-  });
-  form.coluna.innerHTML = "";
-  COLUNAS.forEach((c) => form.coluna.append(new Option(c, c)));
-}
-
-function abrirFormulario(lead) {
-  form.reset();
-  formErro.hidden = true;
-  leadEditando = lead ? lead.id : null;
-  let titulo = lead ? "Editar lead" : "Novo lead";
-  if (lead && lead.dono !== usuario) titulo += ` (de ${lead.dono})`;
-  document.getElementById("modal-titulo").textContent = titulo;
-  btnExcluir.hidden = !lead || lead.dono !== usuario;
-  if (lead) {
-    form.nome.value = lead.nome;
-    form.telefone.value = lead.telefone;
-    form.email.value = lead.email;
-    form.conta.value = lead.conta;
-    form.querySelectorAll('input[name="produtos"]').forEach((c) => {
-      c.checked = lead.produtos.includes(c.value);
-    });
-    form.coluna.value = lead.coluna;
-    form.observacoes.value = lead.observacoes;
-  } else {
-    form.coluna.value = COLUNAS[0];
-  }
-  modal.showModal();
-  form.nome.focus();
-}
-
-form.addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  const dados = {
-    nome: form.nome.value,
-    telefone: form.telefone.value,
-    email: form.email.value,
-    conta: form.conta.value,
-    produtos: [...form.querySelectorAll('input[name="produtos"]:checked')].map((c) => c.value),
-    coluna: form.coluna.value,
-    observacoes: form.observacoes.value,
-  };
-  try {
-    if (leadEditando === null) {
-      leads.push(await api("POST", "/api/leads", dados));
-    } else {
-      const atualizado = await api("PUT", `/api/leads/${leadEditando}`, dados);
-      leads = leads.map((l) => (l.id === atualizado.id ? atualizado : l));
-    }
-    modal.close();
-    desenhar();
-  } catch (e) {
-    formErro.textContent = e.message;
-    formErro.hidden = false;
-  }
-});
-
-async function excluir(lead) {
-  if (!confirm(`Excluir o lead "${lead.nome}"? Esta ação não pode ser desfeita.`)) return false;
-  try {
-    await api("DELETE", `/api/leads/${lead.id}`);
-    leads = leads.filter((l) => l.id !== lead.id);
-    desenhar();
-    return true;
-  } catch (e) {
-    alert("Não foi possível excluir: " + e.message);
-    return false;
-  }
-}
-
-btnExcluir.onclick = async () => {
-  const lead = leads.find((l) => l.id === leadEditando);
-  if (lead && (await excluir(lead))) modal.close();
-};
-document.getElementById("btn-cancelar").onclick = () => modal.close();
-document.getElementById("btn-novo").onclick = () => abrirFormulario(null);
-
-// ---------- trocar senha ----------
-const modalSenha = document.getElementById("modal-senha");
+// ---------- perfil ----------
+const modalPerfil = document.getElementById("modal-perfil");
 const formSenha = document.getElementById("form-senha");
-const senhaErro = document.getElementById("senha-erro");
 
-document.getElementById("btn-senha").onclick = () => {
+function abrirPerfil() {
   formSenha.reset();
-  senhaErro.hidden = true;
-  modalSenha.showModal();
+  mostrarErro(document.getElementById("senha-erro"), "");
+  preencherAvatar(document.getElementById("avatar-perfil"), estado.usuario, "avatar-grande");
+  modalPerfil.showModal();
+}
+document.getElementById("btn-perfil").onclick = abrirPerfil;
+document.getElementById("btn-sair-perfil").onclick = () => { modalPerfil.close(); sair(); };
+
+document.getElementById("btn-escolher-foto").onclick = async () => {
+  const imagem = await escolherImagem();
+  if (!imagem) return;
+  try { await trocarFotoDe(estado.usuario, imagem); } catch (e) { alert(e.message); }
 };
-document.getElementById("btn-senha-cancelar").onclick = () => modalSenha.close();
+document.getElementById("btn-remover-foto").onclick = async () => {
+  try { await trocarFotoDe(estado.usuario, null); } catch (e) { alert(e.message); }
+};
 
 formSenha.addEventListener("submit", async (ev) => {
   ev.preventDefault();
-  senhaErro.hidden = true;
+  const senhaErro = document.getElementById("senha-erro");
+  mostrarErro(senhaErro, "");
   if (formSenha.nova.value !== formSenha.confirma.value) {
-    senhaErro.textContent = "As duas novas senhas não são iguais.";
-    senhaErro.hidden = false;
-    return;
+    return mostrarErro(senhaErro, "As duas novas senhas não são iguais.");
   }
   try {
     await api("POST", "/api/senha", { atual: formSenha.atual.value, nova: formSenha.nova.value });
-    modalSenha.close();
+    formSenha.reset();
     alert("Senha trocada com sucesso!");
   } catch (e) {
-    senhaErro.textContent = e.message;
-    senhaErro.hidden = false;
+    mostrarErro(senhaErro, e.message);
   }
 });
 

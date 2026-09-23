@@ -3,11 +3,14 @@
 CRM em quadro Kanban da equipe Comercial 2 (eGestor NC/CI, ProntoPost, Site, Vitrine).
 Feito só com Python, sem nenhuma biblioteca para instalar.
 
-- **Usuários:** Libraga, Paulinho, Nico e Dani.
-- **Meus leads:** cada pessoa vê só os leads que ela cadastrou.
-- **Visão Geral - Comercial 2:** todos veem os leads de todos, com o nome do dono em cada card.
-  Qualquer pessoa pode editar ou mover um lead para ajudar um colega; só o dono pode excluir.
-- Os leads criados antes de existir login pertencem ao Libraga.
+- **Usuários:** Libraga, Paulinho, Nico, Dani e Doug.
+- **Kanban:** Contatos recorrentes (fora do funil), Em contato, Negociando, Proposta enviada (com a soma
+  das propostas) e Fechado. Abas: Meus leads, Visão Geral - Comercial 2, Meus descartados e Descartados geral.
+- **Lead:** origem, produtos, valor da proposta, atividades com data e hora (o card fica vermelho, azul
+  ou amarelo), anotações com data e hora, registro das atividades concluídas e descarte com motivo.
+- **Menu (planeta Terra):** Kanban, Relatórios, Chat Comercial 2 (texto, áudio e leads; conversas 1:1 e
+  grupos), Participantes, Feedbacks e Ajuda.
+- O passo a passo de uso para a equipe fica na página **Ajuda**, dentro do sistema.
 
 ---
 
@@ -41,7 +44,7 @@ No console **Bash**, rode:
 ```
 cd ~/master && python3 definir_senhas.py
 ```
-Aparecem as 4 senhas **uma única vez**. Anote e passe cada uma para a pessoa certa, de forma privada.
+Aparecem as senhas **uma única vez** (só de quem ainda não tem senha). Anote e passe cada uma para a pessoa certa, de forma privada.
 Depois de entrar, cada um pode trocar a própria senha no botão **Trocar senha**.
 
 Esqueceram a senha? Gere uma nova só para essa pessoa, por exemplo:
