@@ -843,6 +843,25 @@ fieldset legend { margin-bottom: 6px; padding: 0; }
 .tabela th { font-size: 13px; color: var(--texto-suave); }
 .td-pessoa { display: flex; align-items: center; gap: 6px; font-weight: 600; }
 
+/* ---------- Google Agenda ---------- */
+.bloco-google { border-top: 2px dashed #e0d8f0; padding: 12px 0 14px; }
+.bloco-google .acoes { margin-top: 0; }
+a.btn { display: inline-block; text-decoration: none; }
+.selo-google {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 7px;
+  border: 1.5px solid var(--contorno);
+  border-radius: 999px;
+  background: #d3f9d8;
+  color: var(--texto);
+  text-decoration: none;
+  cursor: pointer;
+}
+.selo-google-erro { background: #ffe3e3; }
+.aviso-google { font-size: 13px; background: #e7f5ff; border: 2px dashed #339af0; border-radius: 10px; padding: 6px 10px; margin: 0 0 8px; }
+.link { border: none; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--roxo); text-decoration: underline; cursor: pointer; }
+
 /* ---------- feedbacks e ajuda ---------- */
 .form-feedback { display: grid; grid-template-columns: 200px 1fr; gap: 0 12px; align-items: start; }
 .form-feedback .erro, .form-feedback .btn { grid-column: 1 / -1; justify-self: start; }

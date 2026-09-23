@@ -1,7 +1,8 @@
 # MASTER - instruções para o Claude
 
 CRM do Comercial 2. Backend em Python só com biblioteca padrão (`app.py`, WSGI), interface em
-HTML/CSS/JS puro (`static/`). Roda no PythonAnywhere; o usuário é leigo e fala português.
+HTML/CSS/JS puro (`static/`). Integração com o Google Agenda em `google_agenda.py`
+(OAuth + Calendar API via urllib; credenciais em `dados/google.json`). Roda no PythonAnywhere; o usuário é leigo e fala português.
 
 ## Regras obrigatórias
 

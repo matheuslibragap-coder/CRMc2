@@ -65,6 +65,33 @@ Depois clique em **Reload** na aba **Web**.
 
 ---
 
+## Ligar a integração com o Google Agenda (uma vez só)
+
+Feito uma única vez pelo Libraga. Depois, cada pessoa só clica em **Conectar Google Agenda** no perfil.
+
+1. Acesse https://console.cloud.google.com e entre com a sua conta do Google.
+2. No topo, clique no seletor de projetos → **Novo projeto** → nome `MASTER` → **Criar**. Deixe o projeto selecionado.
+3. Menu ☰ → **APIs e serviços** → **Biblioteca** → procure **Google Calendar API** → **Ativar**.
+4. Menu ☰ → **APIs e serviços** → **Tela de permissão OAuth** (pode aparecer como **Google Auth Platform**) → **Começar**:
+   nome do app `MASTER`, seu e-mail de suporte, público **Externo** (ou **Interno**, se a empresa usa Google Workspace
+   e todos têm e-mail da empresa) e seu e-mail de contato → **Criar**.
+5. Em **Público**, clique em **Publicar aplicativo** → **Confirmar**. (Sem isso, o Google desconecta todo mundo a cada 7 dias.
+   Com público Interno, este passo não existe.)
+6. Em **Clientes** (ou **Credenciais** → **Criar credenciais** → **ID do cliente OAuth**):
+   - Tipo: **Aplicativo da Web**, nome `MASTER`.
+   - Em **URIs de redirecionamento autorizados**, adicione: `https://SEUUSUARIO.pythonanywhere.com/api/google/retorno`
+   - Clique em **Criar** e copie o **ID do cliente** e a **Chave secreta do cliente**.
+7. No console **Bash** do PythonAnywhere:
+   ```
+   cd ~/master && git pull && python3 configurar_google.py
+   ```
+   Cole o ID e a chave quando pedir (a chave não aparece enquanto você cola; é normal) e aperte Enter no endereço de retorno.
+8. Clique em **Reload** na aba **Web**.
+
+As credenciais ficam em `dados/google.json`, que não vai para o GitHub.
+
+---
+
 ## Onde ficam os dados e como fazer backup
 
 Os leads, usuários e senhas (criptografadas) ficam no arquivo **`dados/crm.db`**.

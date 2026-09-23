@@ -211,6 +211,7 @@ function entrarNoSistema(dados) {
   estado.admin = dados.admin;
   estado.usuarios = dados.usuarios;
   estado.config = dados;
+  estado.google = dados.google;
   document.getElementById("nome-usuario").textContent = estado.usuario;
   telaLogin.hidden = true;
   telaApp.hidden = false;
@@ -220,7 +221,51 @@ function entrarNoSistema(dados) {
   irPara("kanban");
   trocarVisao("meus");
   iniciarAvisosChat();
+  avisoRetornoGoogle();
 }
+
+// ---------- Google Agenda ----------
+const MENSAGENS_GOOGLE = {
+  ok: "✅ Google Agenda conectada! As novas atividades vão direto para a sua agenda.",
+  cancelado: "A conexão com o Google Agenda foi cancelada.",
+  erro: "Não foi possível conectar a Google Agenda. Tente de novo; se continuar, avise o Libraga.",
+  "nao-configurado": "A integração com o Google Agenda ainda não foi configurada no servidor (veja a Ajuda).",
+};
+
+// Depois de voltar do Google, o endereço vem com ?google=ok (ou erro/cancelado)
+function avisoRetornoGoogle() {
+  const resultado = new URLSearchParams(location.search).get("google");
+  if (!resultado) return;
+  history.replaceState(null, "", "/");
+  if (MENSAGENS_GOOGLE[resultado]) setTimeout(() => alert(MENSAGENS_GOOGLE[resultado]), 300);
+}
+
+function mostrarSituacaoGoogle() {
+  const g = estado.google || {};
+  const texto = document.getElementById("google-situacao");
+  const conectar = document.getElementById("btn-google-conectar");
+  const desconectar = document.getElementById("btn-google-desconectar");
+  if (!g.configurado) {
+    texto.textContent = "A integração ainda não foi configurada no servidor. Veja o passo a passo na Ajuda.";
+    conectar.hidden = desconectar.hidden = true;
+  } else if (g.conectado) {
+    texto.textContent = `Conectada${g.email ? " em " + g.email : ""}. Cada atividade que você cria vira um evento “NOME/CONTA” de 30 minutos na sua agenda.`;
+    conectar.hidden = true;
+    desconectar.hidden = false;
+  } else {
+    texto.textContent = "Conecte para que cada atividade criada vá direto para a sua Google Agenda.";
+    conectar.hidden = false;
+    desconectar.hidden = true;
+  }
+}
+
+document.getElementById("btn-google-desconectar").onclick = async () => {
+  if (!confirm("Desconectar a Google Agenda? Os eventos já criados continuam na agenda.")) return;
+  try {
+    estado.google = (await api("POST", "/api/google/desconectar")).google;
+    mostrarSituacaoGoogle();
+  } catch (e) { alert(e.message); }
+};
 
 document.getElementById("form-login").addEventListener("submit", async (ev) => {
   ev.preventDefault();
@@ -296,6 +341,7 @@ function abrirPerfil() {
   formSenha.reset();
   mostrarErro(document.getElementById("senha-erro"), "");
   preencherAvatar(document.getElementById("avatar-perfil"), estado.usuario, "avatar-grande");
+  mostrarSituacaoGoogle();
   modalPerfil.showModal();
 }
 document.getElementById("btn-perfil").onclick = abrirPerfil;

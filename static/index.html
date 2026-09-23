@@ -271,6 +271,10 @@
         <div class="lead-lado">
           <section class="bloco">
             <h3>⏰ Atividades</h3>
+            <p id="aviso-google" class="aviso-google" hidden>
+              📅 Conecte sua Google Agenda em <button type="button" class="link" id="link-perfil-google">Meu perfil</button>
+              para as atividades irem direto para lá.
+            </p>
             <div id="lista-atividades"></div>
             <div class="nova-atividade">
               <input type="text" id="atv-descricao" placeholder="O que fazer? Ex.: Ligar para apresentar" maxlength="500">
@@ -365,6 +369,14 @@
         <button type="button" id="btn-remover-foto" class="btn">Usar astronauta padrão</button>
       </div>
     </div>
+    <section class="bloco-google">
+      <h3>📅 Google Agenda</h3>
+      <p id="google-situacao" class="dica"></p>
+      <div class="acoes">
+        <a id="btn-google-conectar" class="btn btn-primario" href="/api/google/conectar" hidden>Conectar Google Agenda</a>
+        <button type="button" id="btn-google-desconectar" class="btn btn-pequeno" hidden>Desconectar</button>
+      </div>
+    </section>
     <form id="form-senha">
       <h3>Trocar senha</h3>
       <label>Senha atual

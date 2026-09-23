@@ -566,6 +566,27 @@ function linhaAtividade(atv, acoes) {
   info.append(el("b", "", quando), el("span", "", atv.descricao));
   const rotulo = { atrasada: "Atrasada", hoje: "Hoje", futura: "Futura" }[s];
   info.append(el("small", `selo selo-${s}`, rotulo));
+  if (atv.google_link) {
+    const g = el("a", "selo-google", "📅 No Google");
+    g.href = atv.google_link;
+    g.target = "_blank";
+    g.rel = "noopener";
+    g.title = `Evento na Google Agenda de ${atv.google_usuario}`;
+    info.append(g);
+  } else if (atv.google_erro && atv.id) {
+    const g = el("button", "selo-google selo-google-erro", "⚠️ Reenviar ao Google");
+    g.type = "button";
+    g.title = atv.google_erro;
+    g.onclick = async () => {
+      try {
+        const atualizado = await api("POST", `/api/atividades/${atv.id}/google`);
+        receberLeadAtualizado(atualizado);
+        const nova = atualizado.atividades.find((a) => a.id === atv.id);
+        if (nova && nova.google_erro) alert(nova.google_erro);
+      } catch (e) { alert(e.message); }
+    };
+    info.append(g);
+  }
   linha.append(info);
   const botoes = el("div", "atividade-botoes");
   acoes.forEach(([texto, titulo, acao]) => {
@@ -580,6 +601,8 @@ function linhaAtividade(atv, acoes) {
 }
 
 function desenharAtividades() {
+  const g = estado.google || {};
+  document.getElementById("aviso-google").hidden = !(g.configurado && !g.conectado);
   const lista = document.getElementById("lista-atividades");
   const concluidas = document.getElementById("lista-concluidas");
   lista.innerHTML = "";
@@ -693,3 +716,8 @@ formDescartar.addEventListener("submit", async (ev) => {
     mostrarErro(document.getElementById("descartar-erro"), e.message);
   }
 });
+
+document.getElementById("link-perfil-google").onclick = () => {
+  modal.close();
+  abrirPerfil();
+};

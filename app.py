@@ -15,15 +15,19 @@ import re
 import secrets
 import sqlite3
 import time
+import urllib.parse
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from http.cookies import SimpleCookie
 from pathlib import Path
 
+import google_agenda as ga
+
 PASTA_BASE = Path(__file__).resolve().parent
 PASTA_STATIC = PASTA_BASE / "static"
 PASTA_DADOS = PASTA_BASE / "dados"
 ARQUIVO_BANCO = PASTA_DADOS / "crm.db"
+ARQUIVO_GOOGLE = PASTA_DADOS / "google.json"  # criado por configurar_google.py
 
 USUARIOS = ["Libraga", "Paulinho", "Nico", "Dani", "Doug"]
 ADMIN = "Libraga"  # pode trocar a foto de todos
@@ -59,7 +63,7 @@ MAX_TENTATIVAS = 5
 BLOQUEIO_SEGUNDOS = 15 * 60
 _tentativas = {}  # usuario -> (quantidade de erros, horário do último erro)
 
-VERSAO_BANCO = 4
+VERSAO_BANCO = 5
 
 
 def agora():
@@ -244,6 +248,30 @@ def migrar_v4(conn):
     conn.execute("UPDATE leads SET observacoes = ''")
 
 
+def migrar_v5(conn):
+    """Integração com o Google Agenda."""
+    existentes = colunas_da_tabela(conn, "atividades")
+    for nome in ("google_evento_id", "google_usuario", "google_link", "google_erro"):
+        if nome not in existentes:
+            conn.execute(f"ALTER TABLE atividades ADD COLUMN {nome} TEXT NOT NULL DEFAULT ''")
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS google_contas (
+            usuario       TEXT PRIMARY KEY,
+            email         TEXT NOT NULL DEFAULT '',
+            refresh_token TEXT NOT NULL,
+            access_token  TEXT NOT NULL,
+            expira_em     TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS google_estados (
+            estado    TEXT PRIMARY KEY,
+            usuario   TEXT NOT NULL,
+            criado_em TEXT NOT NULL
+        );
+        """
+    )
+
+
 def criar_banco():
     """Cria a pasta, o banco e os usuários na primeira execução."""
     PASTA_DADOS.mkdir(exist_ok=True)
@@ -264,9 +292,12 @@ def criar_banco():
                    expira_em TEXT NOT NULL
                )"""
         )
-        if conn.execute("PRAGMA user_version").fetchone()[0] < VERSAO_BANCO:
+        versao = conn.execute("PRAGMA user_version").fetchone()[0]
+        if versao < 4:
             migrar_v4(conn)
-            conn.execute(f"PRAGMA user_version = {VERSAO_BANCO}")
+        if versao < 5:
+            migrar_v5(conn)
+        conn.execute(f"PRAGMA user_version = {VERSAO_BANCO}")
         conn.executemany(
             "INSERT OR IGNORE INTO usuarios (nome) VALUES (?)",
             [(u,) for u in USUARIOS],
@@ -367,7 +398,7 @@ class Resposta(Exception):
         self.tipo = tipo
 
 
-STATUS = {200: "200 OK", 201: "201 Created", 400: "400 Bad Request",
+STATUS = {200: "200 OK", 201: "201 Created", 302: "302 Found", 400: "400 Bad Request",
           401: "401 Unauthorized", 403: "403 Forbidden", 404: "404 Not Found",
           405: "405 Method Not Allowed", 413: "413 Payload Too Large",
           429: "429 Too Many Requests"}
@@ -519,6 +550,7 @@ def rota_eu(req):
         "origem_campanha": ORIGEM_CAMPANHA,
         "motivos_descarte": MOTIVOS_DESCARTE,
         "tipos_feedback": TIPOS_FEEDBACK,
+        "google": situacao_google(usuario),
     })
 
 
@@ -609,6 +641,8 @@ def leads_completos(conn, where="", params=()):
             "id": a["id"], "descricao": a["descricao"], "quando": a["quando"],
             "concluida": bool(a["concluida"]), "concluida_em": a["concluida_em"],
             "concluida_por": a["concluida_por"], "criado_por": a["criado_por"],
+            "google_link": a["google_link"], "google_erro": a["google_erro"],
+            "google_usuario": a["google_usuario"],
         })
     return leads
 
@@ -715,10 +749,13 @@ def rota_criar_lead(req):
         if anotacao:
             conn.execute("INSERT INTO anotacoes (lead_id, texto, autor, criado_em) "
                          "VALUES (?, ?, ?, ?)", (lead_id, anotacao, usuario, momento))
-        for descricao, quando in atividades:
-            conn.execute("INSERT INTO atividades (lead_id, descricao, quando, criado_por, "
-                         "criado_em) VALUES (?, ?, ?, ?, ?)",
-                         (lead_id, descricao, quando, usuario, momento))
+        novas = [conn.execute("INSERT INTO atividades (lead_id, descricao, quando, criado_por, "
+                              "criado_em) VALUES (?, ?, ?, ?, ?)",
+                              (lead_id, descricao, quando, usuario, momento)).lastrowid
+                 for descricao, quando in atividades]
+    for atividade_id in novas:
+        sincronizar_atividade(atividade_id)
+    with banco() as conn:
         raise Resposta(201, lead_por_id(conn, lead_id))
 
 
@@ -742,6 +779,13 @@ def rota_editar_lead(req, lead_id):
              lead["origem"], lead["origem_detalhe"], lead["valor_proposta"], lead["coluna"],
              lead_id),
         )
+        mudou_titulo = (atual["nome"], atual["conta"]) != (lead["nome"], lead["conta"])
+        com_evento = [a["id"] for a in conn.execute(
+            "SELECT id FROM atividades WHERE lead_id = ? AND concluida = 0 AND google_evento_id != ''",
+            (lead_id,))] if mudou_titulo else []
+    for atividade_id in com_evento:
+        sincronizar_atividade(atividade_id)
+    with banco() as conn:
         raise Resposta(200, lead_por_id(conn, lead_id))
 
 
@@ -772,6 +816,11 @@ def rota_excluir_lead(req, lead_id):
         lead = lead_por_id(conn, lead_id)
         if lead["dono"] != usuario:
             raise erro(403, f"Só {lead['dono']} pode excluir este lead.")
+        pendentes = conn.execute("SELECT * FROM atividades WHERE lead_id = ? AND concluida = 0",
+                                 (lead_id,)).fetchall()
+    for atividade in pendentes:
+        apagar_do_google(atividade)
+    with banco() as conn:
         conn.execute("DELETE FROM leads WHERE id = ?", (lead_id,))
     raise Resposta(200, {"ok": True})
 
@@ -803,8 +852,11 @@ def rota_criar_atividade(req, lead_id):
     descricao, quando = ler_atividade(req.json())
     with banco() as conn:
         lead_por_id(conn, lead_id)
-        conn.execute("INSERT INTO atividades (lead_id, descricao, quando, criado_por, criado_em) "
-                     "VALUES (?, ?, ?, ?, ?)", (lead_id, descricao, quando, usuario, agora()))
+        atividade_id = conn.execute(
+            "INSERT INTO atividades (lead_id, descricao, quando, criado_por, criado_em) "
+            "VALUES (?, ?, ?, ?, ?)", (lead_id, descricao, quando, usuario, agora())).lastrowid
+    sincronizar_atividade(atividade_id)
+    with banco() as conn:
         raise Resposta(201, lead_por_id(conn, lead_id))
 
 
@@ -822,6 +874,8 @@ def rota_editar_atividade(req, atividade_id):
         linha = atividade_por_id(conn, atividade_id)
         conn.execute("UPDATE atividades SET descricao = ?, quando = ? WHERE id = ?",
                      (descricao, quando, atividade_id))
+    sincronizar_atividade(atividade_id)
+    with banco() as conn:
         raise Resposta(200, lead_por_id(conn, linha["lead_id"]))
 
 
@@ -838,8 +892,183 @@ def rota_excluir_atividade(req, atividade_id):
     exigir_login(req)
     with banco() as conn:
         linha = atividade_por_id(conn, atividade_id)
+    apagar_do_google(linha)
+    with banco() as conn:
         conn.execute("DELETE FROM atividades WHERE id = ?", (atividade_id,))
         raise Resposta(200, lead_por_id(conn, linha["lead_id"]))
+
+
+def rota_reenviar_google(req, atividade_id):
+    exigir_login(req)
+    with banco() as conn:
+        linha = atividade_por_id(conn, atividade_id)
+    sincronizar_atividade(atividade_id)
+    with banco() as conn:
+        raise Resposta(200, lead_por_id(conn, linha["lead_id"]))
+
+
+# ---------------------------------------------------------------------------
+# Google Agenda
+# ---------------------------------------------------------------------------
+
+def situacao_google(usuario):
+    configurado = ga.carregar_config(ARQUIVO_GOOGLE) is not None
+    with banco() as conn:
+        conta = conn.execute("SELECT email FROM google_contas WHERE usuario = ?", (usuario,)).fetchone()
+    return {"configurado": configurado, "conectado": bool(conta and configurado),
+            "email": conta["email"] if conta else ""}
+
+
+def token_google(usuario):
+    """Token válido da agenda da pessoa, ou None se ela não conectou a Google Agenda."""
+    config = ga.carregar_config(ARQUIVO_GOOGLE)
+    if not config or not usuario:
+        return None
+    with banco() as conn:
+        conta = conn.execute("SELECT * FROM google_contas WHERE usuario = ?", (usuario,)).fetchone()
+    if not conta:
+        return None
+    if conta["expira_em"] > datetime.now().isoformat():
+        return conta["access_token"]
+    try:
+        access, expira = ga.renovar(config, conta["refresh_token"])
+    except ga.GoogleDesconectado:
+        with banco() as conn:
+            conn.execute("DELETE FROM google_contas WHERE usuario = ?", (usuario,))
+        raise
+    with banco() as conn:
+        conn.execute("UPDATE google_contas SET access_token = ?, expira_em = ? WHERE usuario = ?",
+                     (access, expira, usuario))
+    return access
+
+
+def titulo_evento(nome, conta):
+    """Formato pedido: NOME/CONTA (só o nome, se o lead não tiver conta)."""
+    return f"{nome}/{conta}" if conta else nome
+
+
+def descricao_evento(atividade):
+    linhas = [atividade["descricao"], "", f"Lead: {atividade['nome']}"]
+    if atividade["conta"]:
+        linhas.append(f"Conta: {atividade['conta']}")
+    if atividade["telefone"]:
+        linhas.append(f"Telefone: {atividade['telefone']}")
+    if atividade["email"]:
+        linhas.append(f"E-mail: {atividade['email']}")
+    linhas += ["", "Criado pelo MASTER - Comercial 2"]
+    return "\n".join(linhas)
+
+
+def sincronizar_atividade(atividade_id):
+    """Cria ou atualiza o evento na agenda de quem criou a atividade.
+
+    Nunca interrompe a rota: se o Google falhar, a atividade fica salva no MASTER
+    com a mensagem em google_erro (e pode ser reenviada depois).
+    """
+    with banco() as conn:
+        atv = conn.execute(
+            "SELECT a.*, l.nome, l.conta, l.telefone, l.email FROM atividades a "
+            "JOIN leads l ON l.id = a.lead_id WHERE a.id = ?", (atividade_id,)).fetchone()
+    if not atv or atv["concluida"]:
+        return
+    dono_agenda = atv["google_usuario"] or atv["criado_por"]
+    evento_id, link, mensagem = atv["google_evento_id"], atv["google_link"], ""
+    try:
+        token = token_google(dono_agenda)
+        if not token:
+            return  # a pessoa ainda não conectou a Google Agenda
+        inicio = datetime.strptime(atv["quando"], "%Y-%m-%dT%H:%M")
+        titulo = titulo_evento(atv["nome"], atv["conta"])
+        if evento_id:
+            evento_id, link = ga.atualizar_evento(token, evento_id, titulo, descricao_evento(atv), inicio)
+        else:
+            evento_id, link = ga.criar_evento(token, titulo, descricao_evento(atv), inicio)
+    except ga.GoogleErro as e:
+        mensagem = str(e)
+    with banco() as conn:
+        conn.execute("UPDATE atividades SET google_evento_id = ?, google_usuario = ?, "
+                     "google_link = ?, google_erro = ? WHERE id = ?",
+                     (evento_id, dono_agenda, link, mensagem, atividade_id))
+
+
+def apagar_do_google(atividade):
+    if not atividade["google_evento_id"]:
+        return
+    try:
+        token = token_google(atividade["google_usuario"])
+        if token:
+            ga.apagar_evento(token, atividade["google_evento_id"])
+    except ga.GoogleErro:
+        pass  # o evento fica na agenda; a pessoa pode apagar direto no Google
+
+
+def endereco_retorno(req, config):
+    if config.get("redirect_uri"):
+        return config["redirect_uri"]
+    esquema = "https" if req.https else "http"
+    return f"{esquema}://{req.environ.get('HTTP_HOST', 'localhost:8000')}/api/google/retorno"
+
+
+def redirecionar(destino):
+    raise Resposta(302, b"", [("Location", destino)], tipo="text/plain; charset=utf-8")
+
+
+def rota_google_conectar(req):
+    usuario = usuario_da_sessao(req.token)
+    if not usuario:
+        redirecionar("/")
+    config = ga.carregar_config(ARQUIVO_GOOGLE)
+    if not config:
+        redirecionar("/?google=nao-configurado")
+    estado = secrets.token_urlsafe(24)
+    with banco() as conn:
+        limite = (datetime.now() - timedelta(minutes=30)).isoformat()
+        conn.execute("DELETE FROM google_estados WHERE criado_em < ?", (limite,))
+        conn.execute("INSERT INTO google_estados VALUES (?, ?, ?)",
+                     (estado, usuario, datetime.now().isoformat()))
+    redirecionar(ga.url_autorizacao(config, endereco_retorno(req, config), estado))
+
+
+def rota_google_retorno(req):
+    usuario = usuario_da_sessao(req.token)
+    estado = req.parametro("state")
+    with banco() as conn:
+        linha = conn.execute("SELECT usuario FROM google_estados WHERE estado = ?", (estado,)).fetchone()
+        conn.execute("DELETE FROM google_estados WHERE estado = ?", (estado,))
+    # O "estado" garante que o retorno é do pedido que esta mesma pessoa fez
+    if not usuario or not linha or linha["usuario"] != usuario:
+        redirecionar("/?google=erro")
+    if req.parametro("error") or not req.parametro("code"):
+        redirecionar("/?google=cancelado")
+    config = ga.carregar_config(ARQUIVO_GOOGLE)
+    if not config:
+        redirecionar("/?google=nao-configurado")
+    codigo = urllib.parse.unquote(req.parametro("code"))
+    try:
+        access, refresh, expira = ga.trocar_codigo(config, codigo, endereco_retorno(req, config))
+        if not refresh:
+            raise ga.GoogleErro("O Google não enviou a autorização permanente.")
+        try:
+            email = ga.email_da_agenda(access)
+        except ga.GoogleErro:
+            email = ""
+    except ga.GoogleErro:
+        redirecionar("/?google=erro")
+    with banco() as conn:
+        conn.execute("INSERT OR REPLACE INTO google_contas VALUES (?, ?, ?, ?, ?)",
+                     (usuario, email, refresh, access, expira))
+    redirecionar("/?google=ok")
+
+
+def rota_google_desconectar(req):
+    usuario = exigir_login(req)
+    with banco() as conn:
+        conta = conn.execute("SELECT refresh_token FROM google_contas WHERE usuario = ?",
+                             (usuario,)).fetchone()
+        conn.execute("DELETE FROM google_contas WHERE usuario = ?", (usuario,))
+    if conta:
+        ga.revogar(conta["refresh_token"])
+    raise Resposta(200, {"google": situacao_google(usuario)})
 
 
 # ---------------------------------------------------------------------------
@@ -1124,6 +1353,10 @@ ROTAS = [
     ("PUT", r"/api/atividades/(\d+)", rota_editar_atividade),
     ("POST", r"/api/atividades/(\d+)/concluir", rota_concluir_atividade),
     ("DELETE", r"/api/atividades/(\d+)", rota_excluir_atividade),
+    ("POST", r"/api/atividades/(\d+)/google", rota_reenviar_google),
+    ("GET", r"/api/google/conectar", rota_google_conectar),
+    ("GET", r"/api/google/retorno", rota_google_retorno),
+    ("POST", r"/api/google/desconectar", rota_google_desconectar),
     ("GET", r"/api/conversas", rota_listar_conversas),
     ("POST", r"/api/conversas/direta", rota_conversa_direta),
     ("POST", r"/api/conversas/grupo", rota_criar_grupo),
