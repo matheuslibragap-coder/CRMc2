@@ -8,6 +8,9 @@ const estado = {
   pagina: "kanban",
 };
 
+// Guia aberta pelo "↗ Nova guia" de um lead: o endereço vem com ?lead=ID
+let leadNaGuia = Number(new URLSearchParams(location.search).get("lead")) || null;
+
 const telaLogin = document.getElementById("tela-login");
 const telaApp = document.getElementById("tela-app");
 
@@ -236,8 +239,22 @@ function entrarNoSistema(dados) {
   irPara("kanban");
   trocarVisao(estado.coordenador ? "geral" : "meus");
   iniciarAvisosChat();
-  iniciarLembretes();
+  iniciarLembretes(!leadNaGuia);
   avisoRetornoGoogle();
+  if (leadNaGuia) abrirLeadNaGuia();
+}
+
+// Abre o lead do endereço; ao fechar a janela, a guia vira um MASTER normal
+async function abrirLeadNaGuia() {
+  await abrirLeadPorId(leadNaGuia);
+  if (leadAtual && leadAtual.id === leadNaGuia) document.title = `${leadAtual.nome} · MASTER`;
+  const voltarAoNormal = () => {
+    leadNaGuia = null;
+    document.title = "MASTER";
+    history.replaceState(null, "", "/");
+  };
+  if (modal.open) modal.addEventListener("close", voltarAoNormal, { once: true });
+  else voltarAoNormal();
 }
 
 // ---------- Google Agenda ----------
@@ -338,6 +355,7 @@ function irPara(pagina) {
     i.classList.toggle("ativo", i.dataset.pagina === pagina));
   document.getElementById("btn-chat").classList.toggle("ativo", pagina === "chat");
   document.getElementById("btn-carteira").classList.toggle("ativo", pagina === "carteira");
+  document.getElementById("btn-agenda").classList.toggle("ativo", pagina === "agenda");
   document.getElementById("btn-novo").hidden = pagina !== "kanban";
   if (pagina === "kanban") carregarLeads();
   if (pagina === "carteira") carregarCarteira();

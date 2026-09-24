@@ -130,14 +130,33 @@ function abrirAgenda() {
   carregarAgenda();
   clearInterval(agenda.timer);
   agenda.timer = setInterval(() => {
-    if (estado.pagina !== "agenda") return clearInterval(agenda.timer);
-    if (!document.querySelector("dialog[open]")) carregarAgenda(false);
+    if (!agendaVisivel()) return clearInterval(agenda.timer);
+    if (!document.querySelector("dialog[open]:not(#modal-agenda)")) carregarAgenda(false);
   }, 60000);
 }
 
+// ---------- agenda em janela (pop-up), aberta pelo botão ao lado do chat ----------
+const modalAgenda = document.getElementById("modal-agenda");
+const painelAgenda = document.querySelector(".painel.agenda");
+const agendaVisivel = () => estado.pagina === "agenda" || modalAgenda.open;
+
+document.getElementById("btn-agenda").onclick = () => {
+  if (estado.pagina === "agenda") return; // já está na tela inteira
+  document.getElementById("agenda-popup-lugar").append(painelAgenda);
+  modalAgenda.showModal();
+  abrirAgenda();
+};
+modalAgenda.addEventListener("close", () => {
+  document.getElementById("pagina-agenda").append(painelAgenda);
+});
+document.getElementById("agenda-tela-cheia").onclick = () => {
+  modalAgenda.close();
+  irPara("agenda");
+};
+
 // Quando o lead é salvo/fechado, a agenda se atualiza sozinha
 document.getElementById("modal").addEventListener("close", () => {
-  if (estado.pagina === "agenda") carregarAgenda(false);
+  if (agendaVisivel()) carregarAgenda(false);
 });
 
 async function carregarAgenda(rolarParaManha = true) {
@@ -405,7 +424,7 @@ async function abrirAtividadeAgenda(a) {
 
 function fecharJanelaAtividade() {
   modalAtividade.close();
-  if (estado.pagina === "agenda") carregarAgenda(false);
+  if (agendaVisivel()) carregarAgenda(false);
 }
 document.getElementById("btn-atividade-fechar").onclick = () => modalAtividade.close();
 

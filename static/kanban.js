@@ -310,11 +310,24 @@ function criarCard(lead, mostrarDono = visao !== "meus" && visao !== "meus_desca
     card.append(d);
   }
 
-  const nome = el("button", "card-nome", lead.nome);
-  nome.type = "button";
-  nome.title = "Abrir lead";
-  nome.onclick = () => abrirFormulario(lead);
-  card.append(nome);
+  // Nome: clique abre aqui; Ctrl+clique (ou botão do meio) abre em nova guia, como um link comum
+  const linhaNome = el("div", "card-nome-linha");
+  const nome = el("a", "card-nome", lead.nome);
+  nome.href = linkDoLead(lead.id);
+  nome.title = "Abrir lead (Ctrl+clique abre em nova guia)";
+  nome.onclick = (ev) => {
+    if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button !== 0) return;
+    ev.preventDefault();
+    abrirFormulario(lead);
+  };
+  const guia = el("a", "card-nova-guia", "↗");
+  guia.href = linkDoLead(lead.id);
+  guia.target = "_blank";
+  guia.rel = "noopener";
+  guia.title = "Abrir em nova guia";
+  guia.setAttribute("aria-label", `Abrir ${lead.nome} em nova guia`);
+  linhaNome.append(nome, guia);
+  card.append(linhaNome);
 
   if (lead.telefone) card.append(linhaCopiavel("Tel", lead.telefone, true));
   if (lead.email) card.append(linhaCopiavel("E-mail", lead.email));
@@ -332,6 +345,14 @@ function criarCard(lead, mostrarDono = visao !== "meus" && visao !== "meus_desca
     fattura.rel = "noopener";
     fattura.title = lead.link_fattura;
     card.append(fattura);
+  }
+  if (lead.link_blaster && /^https?:\/\//i.test(lead.link_blaster)) {
+    const blaster = el("a", "link-fattura link-blaster", "🎯 Abrir Blaster ↗");
+    blaster.href = lead.link_blaster;
+    blaster.target = "_blank";
+    blaster.rel = "noopener";
+    blaster.title = lead.link_blaster;
+    card.append(blaster);
   }
   if (lead.origem) {
     const origem = lead.origem + (lead.origem_detalhe ? ` (${lead.origem_detalhe})` : "");
@@ -731,15 +752,23 @@ function atualizarCamposCondicionais() {
 }
 form.origem.addEventListener("change", atualizarCamposCondicionais);
 
-// "abrir ↗" ao lado do campo Link Fattura, quando há um link válido
-function atualizarLinkFattura() {
-  const valor = form.link_fattura.value.trim();
-  const link = document.getElementById("abrir-fattura");
+// "abrir ↗" ao lado dos campos Link Fattura e Link do Blaster, quando há um link válido
+function atualizarLinkAbrir(campo, idLink) {
+  const valor = campo.value.trim();
+  const link = document.getElementById(idLink);
   const endereco = /^https?:\/\//i.test(valor) ? valor : valor ? "https://" + valor : "";
   link.hidden = !/^https?:\/\/\S+\.\S+/i.test(endereco);
   link.href = link.hidden ? "#" : endereco;
 }
+function atualizarLinkFattura() {
+  atualizarLinkAbrir(form.link_fattura, "abrir-fattura");
+  atualizarLinkAbrir(form.link_blaster, "abrir-blaster");
+}
 form.link_fattura.addEventListener("input", atualizarLinkFattura);
+form.link_blaster.addEventListener("input", atualizarLinkFattura);
+
+// Endereço que abre o lead direto (usado no "↗ Nova guia")
+const linkDoLead = (id) => `/?lead=${id}`;
 form.coluna.addEventListener("change", atualizarCamposCondicionais);
 
 // Quem pode ver/trocar o dono no formulário
@@ -793,6 +822,9 @@ function abrirFormulario(lead, colunaInicial) {
   let titulo = lead ? lead.nome : carteira ? "Novo cliente na Carteira" : "Novo lead";
   if (lead && lead.dono !== estado.usuario) titulo += ` (de ${lead.dono})`;
   document.getElementById("modal-titulo").textContent = titulo;
+  const novaGuia = document.getElementById("lead-nova-guia");
+  novaGuia.hidden = !lead || leadNaGuia === lead.id; // nesta guia ele já está sozinho
+  if (lead) novaGuia.href = linkDoLead(lead.id);
 
   const avisoDescartado = document.getElementById("aviso-descartado");
   avisoDescartado.hidden = !(lead && lead.descartado);
@@ -806,6 +838,7 @@ function abrirFormulario(lead, colunaInicial) {
     form.email.value = lead.email;
     form.conta.value = lead.conta;
     form.link_fattura.value = lead.link_fattura || "";
+    form.link_blaster.value = lead.link_blaster || "";
     form.origem.value = lead.origem;
     form.origem_detalhe.value = lead.origem_detalhe;
     form.querySelectorAll('input[name="produtos"]').forEach((c) => (c.checked = lead.produtos.includes(c.value)));
@@ -854,6 +887,7 @@ function dadosDoFormulario() {
     email: form.email.value,
     conta: form.conta.value,
     link_fattura: form.link_fattura.value,
+    link_blaster: form.link_blaster.value,
     origem: form.origem.value,
     origem_detalhe: form.origem_detalhe.value,
     produtos: [...form.querySelectorAll('input[name="produtos"]:checked')].map((c) => c.value),

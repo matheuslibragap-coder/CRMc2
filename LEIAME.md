@@ -8,12 +8,13 @@ Feito só com Python, sem nenhuma biblioteca para instalar.
 - **Kanban:** Em contato, Negociando, Proposta enviada (soma das propostas) e Fechado (soma das vendas),
   com busca e filtros. Abas: Meus leads, Visão Geral - Comercial 2, Meus descartados e Descartados geral.
 - **💼 Carteira:** clientes acompanhados pelo gerente de contas, fora do funil (botão ao lado da foto).
-- **Lead:** origem, produtos, WhatsApp, aviso de duplicado, transferência, linha do tempo, atividades com
+- **Lead:** links Fattura e Blaster, abrir em nova guia, origem, produtos, WhatsApp, aviso de duplicado, transferência, linha do tempo, atividades com
   cores e Google Agenda, anotações com data e hora, descarte com motivo e, ao fechar, valor, produtos
   vendidos e comissão dobrada para indicação.
 - **🚀 Decolagem do sucesso:** meta mensal/trimestral (padrão R$ 12.000,00/mês), trilha espacial,
   tripulação com comissões e ranking em tempo real.
-- **📅 Agenda Espacial:** atividades em dia, semana ou mês até 2027, com feriados nacionais.
+- **📅 Agenda Espacial:** atividades em dia, semana ou mês até 2027, com feriados nacionais; abre em tela
+  inteira (menu) ou em janela (botão 📅 ao lado do chat).
 - **Menu (planeta Terra):** Kanban, Meu dia, Agenda Espacial, Carteira, Decolagem, Relatórios, Chat, Participantes,
   Feedbacks, Ajuda e Administração.
 - O passo a passo de uso para a equipe fica na página **Ajuda**, dentro do sistema.

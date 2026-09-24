@@ -77,7 +77,7 @@ MAX_TENTATIVAS = 5
 BLOQUEIO_SEGUNDOS = 15 * 60
 _tentativas = {}  # usuario -> (quantidade de erros, horário do último erro)
 
-VERSAO_BANCO = 8
+VERSAO_BANCO = 9
 
 
 def agora():
@@ -394,6 +394,12 @@ def migrar_v8(conn):
     )
 
 
+def migrar_v9(conn):
+    """Link do Blaster no lead."""
+    if "link_blaster" not in colunas_da_tabela(conn, "leads"):
+        conn.execute("ALTER TABLE leads ADD COLUMN link_blaster TEXT NOT NULL DEFAULT ''")
+
+
 def criar_banco():
     """Cria a pasta, o banco e os usuários na primeira execução."""
     PASTA_DADOS.mkdir(exist_ok=True)
@@ -432,6 +438,8 @@ def criar_banco():
             migrar_v7(conn)
         if versao < 8:
             migrar_v8(conn)
+        if versao < 9:
+            migrar_v9(conn)
         conn.execute(f"PRAGMA user_version = {VERSAO_BANCO}")
         # Conversa geral "Comercial 2" com todos os usuários
         conn.execute(
@@ -899,7 +907,7 @@ def leads_completos(conn, where="", params=()):
             "id": l["id"], "nome": l["nome"], "telefone": l["telefone"], "email": l["email"],
             "conta": l["conta"], "produtos": json.loads(l["produtos"]),
             "origem": l["origem"], "origem_detalhe": l["origem_detalhe"],
-            "link_fattura": l["link_fattura"],
+            "link_fattura": l["link_fattura"], "link_blaster": l["link_blaster"],
             "valor_proposta": l["valor_proposta"], "data_criacao": l["data_criacao"],
             "coluna": l["coluna"], "dono": l["dono"],
             "descartado": bool(l["descartado"]), "motivo_descarte": l["motivo_descarte"],
@@ -944,6 +952,17 @@ def lead_por_id(conn, lead_id):
     return leads[0]
 
 
+def validar_link(link, nome_campo):
+    """Aceita só links da web (evita endereços perigosos como "javascript:")."""
+    if not link:
+        return ""
+    if not re.match(r"https?://", link, re.I):
+        link = "https://" + link
+    if not re.fullmatch(r"https?://[^\s<>\"']+\.[^\s<>\"']+", link, re.I):
+        raise erro(400, f"{nome_campo} inválido. Cole o endereço completo, ex.: https://...")
+    return link
+
+
 def validar_lead(dados):
     """Recebe o lead completo (já mesclado) e devolve os campos limpos."""
     lead = {
@@ -954,16 +973,13 @@ def validar_lead(dados):
         "origem": texto(dados, "origem", limite=100),
         "origem_detalhe": texto(dados, "origem_detalhe", limite=200),
         "link_fattura": texto(dados, "link_fattura", limite=500),
+        "link_blaster": texto(dados, "link_blaster", limite=500),
         "coluna": texto(dados, "coluna") or COLUNAS_FUNIL[0],
     }
     if lead["coluna"] not in COLUNAS:
         raise erro(400, "Coluna inválida.")
-    if lead["link_fattura"]:
-        # Só links da web (evita endereços perigosos como "javascript:")
-        if not re.match(r"https?://", lead["link_fattura"], re.I):
-            lead["link_fattura"] = "https://" + lead["link_fattura"]
-        if not re.fullmatch(r"https?://[^\s<>\"']+\.[^\s<>\"']+", lead["link_fattura"], re.I):
-            raise erro(400, "Link Fattura inválido. Cole o endereço completo, ex.: https://...")
+    lead["link_fattura"] = validar_link(lead["link_fattura"], "Link Fattura")
+    lead["link_blaster"] = validar_link(lead["link_blaster"], "Link do Blaster")
     carteira = lead["coluna"] == CARTEIRA
 
     produtos = dados.get("produtos") or []
@@ -1118,11 +1134,11 @@ def rota_criar_lead(req):
         cur = conn.execute(
             """INSERT INTO leads (nome, telefone, email, conta, produtos, origem,
                                   origem_detalhe, valor_proposta, data_criacao, coluna, dono,
-                                  link_fattura)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                  link_fattura, link_blaster)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (lead["nome"], lead["telefone"], lead["email"], lead["conta"], lead["produtos"],
              lead["origem"], lead["origem_detalhe"], lead["valor_proposta"],
-             momento[:10], lead["coluna"], dono, lead["link_fattura"]),
+             momento[:10], lead["coluna"], dono, lead["link_fattura"], lead["link_blaster"]),
         )
         lead_id = cur.lastrowid
         detalhe = f"criado por {usuario}" if dono != usuario else ""
@@ -1161,11 +1177,12 @@ def rota_editar_lead(req, lead_id):
             venda = ler_venda(dados.get("venda"), lead["origem"])
         conn.execute(
             """UPDATE leads SET nome = ?, telefone = ?, email = ?, conta = ?, produtos = ?,
-                   origem = ?, origem_detalhe = ?, valor_proposta = ?, coluna = ?, link_fattura = ?
+                   origem = ?, origem_detalhe = ?, valor_proposta = ?, coluna = ?, link_fattura = ?,
+                   link_blaster = ?
                WHERE id = ?""",
             (lead["nome"], lead["telefone"], lead["email"], lead["conta"], lead["produtos"],
              lead["origem"], lead["origem_detalhe"], lead["valor_proposta"], lead["coluna"],
-             lead["link_fattura"], lead_id),
+             lead["link_fattura"], lead["link_blaster"], lead_id),
         )
         if lead["coluna"] != atual["coluna"]:
             registrar(conn, lead_id, "etapa", lead["coluna"], f"saiu de {atual['coluna']}", usuario)

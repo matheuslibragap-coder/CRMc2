@@ -70,6 +70,9 @@
           <span data-icone="chat"></span>
           <span id="badge-chat" class="badge-chat" hidden>0</span>
         </button>
+        <button id="btn-agenda" class="btn-agenda" title="Agenda Espacial (janela rápida)" aria-label="Abrir agenda em janela">
+          <span data-icone="agendaEspacial"></span>
+        </button>
         <div id="popup-chat" class="popup-chat" hidden></div>
       </div>
       <div class="topo-direita">
@@ -357,6 +360,7 @@
     <form id="form-lead" method="dialog">
       <div class="modal-topo">
         <h2 id="modal-titulo">Novo lead</h2>
+        <a id="lead-nova-guia" class="btn-nova-guia" target="_blank" rel="noopener" title="Abrir este lead em uma nova guia" hidden>↗ Nova guia</a>
         <button type="button" class="btn-x" data-fechar="modal" aria-label="Fechar">✕</button>
       </div>
       <p id="aviso-descartado" class="aviso-descartado" hidden></p>
@@ -382,6 +386,9 @@
           </label>
           <label>Link Fattura <a id="abrir-fattura" class="link-abrir" target="_blank" rel="noopener" hidden>abrir ↗</a>
             <input type="text" name="link_fattura" inputmode="url" maxlength="500" placeholder="https://...">
+          </label>
+          <label>Link do Blaster <a id="abrir-blaster" class="link-abrir" target="_blank" rel="noopener" hidden>abrir ↗</a>
+            <input type="text" name="link_blaster" inputmode="url" maxlength="500" placeholder="https://...">
           </label>
           <div class="linha-dupla">
             <label>Origem <span class="obrig-funil">*</span>
@@ -588,6 +595,15 @@
     </div>
     <input type="search" id="busca-lead" placeholder="Buscar por nome, telefone, conta ou dono…">
     <div id="lista-escolher-lead" class="lista-escolha"></div>
+  </dialog>
+
+  <!-- Agenda Espacial em janela (pop-up) -->
+  <dialog id="modal-agenda" class="modal-agenda" aria-label="Agenda Espacial">
+    <div class="agenda-popup-botoes">
+      <button type="button" id="agenda-tela-cheia" class="btn btn-pequeno" title="Abrir a agenda na tela inteira">⤢ Tela cheia</button>
+      <button type="button" class="btn-x" data-fechar="modal-agenda" aria-label="Fechar">✕</button>
+    </div>
+    <div id="agenda-popup-lugar"></div>
   </dialog>
 
   <!-- Atividade da Agenda Espacial (com ou sem lead) -->

@@ -32,6 +32,22 @@ const ICONES = {
     <circle cx="42" cy="26" r="3.5" fill="${CONTORNO}"/>
   </svg>`,
 
+  // Agenda no espaço: folhinha com argolas, um planetinha com anel e estrelas
+  agendaEspacial: `<svg viewBox="0 0 64 64" aria-hidden="true">
+    <path d="M6 10 L8 6 L10 10 L14 12 L10 14 L8 18 L6 14 L2 12 Z" fill="#ffd43b" stroke="${CONTORNO}" stroke-width="1.5" stroke-linejoin="round"/>
+    <circle cx="58" cy="54" r="2.5" fill="#fff" stroke="${CONTORNO}" stroke-width="1.2"/>
+    <rect x="10" y="14" width="44" height="42" rx="7" fill="#fff" stroke="${CONTORNO}" stroke-width="3.5"/>
+    <path d="M10 21 Q10 14 17 14 L47 14 Q54 14 54 21 L54 26 L10 26 Z" fill="#ff6b6b" stroke="${CONTORNO}" stroke-width="3.5" stroke-linejoin="round"/>
+    <rect x="19" y="8" width="5" height="11" rx="2.5" fill="#dee2e6" stroke="${CONTORNO}" stroke-width="2.5"/>
+    <rect x="40" y="8" width="5" height="11" rx="2.5" fill="#dee2e6" stroke="${CONTORNO}" stroke-width="2.5"/>
+    <circle cx="32" cy="41" r="8" fill="#9775fa" stroke="${CONTORNO}" stroke-width="2.5"/>
+    <path d="M29 37 Q33 36 35 39" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+    <ellipse cx="32" cy="42" rx="15" ry="4.5" fill="none" stroke="${CONTORNO}" stroke-width="2.5" transform="rotate(-15 32 42)"/>
+    <circle cx="17" cy="33" r="1.6" fill="${CONTORNO}"/>
+    <circle cx="48" cy="50" r="1.6" fill="${CONTORNO}"/>
+    <circle cx="47" cy="33" r="1.2" fill="${CONTORNO}"/>
+  </svg>`,
+
   whatsapp: `<svg viewBox="0 0 32 32" aria-hidden="true">
     <path d="M16 3 C9 3 3.5 8.4 3.5 15.2 C3.5 17.6 4.2 19.9 5.4 21.8 L4 28 L10.4 26.5 C12.1 27.4 14 27.9 16 27.9 C23 27.9 28.5 22.4 28.5 15.5 C28.5 8.5 23 3 16 3 Z" fill="#25d366" stroke="${CONTORNO}" stroke-width="2.2" stroke-linejoin="round"/>
     <path d="M11.6 9.6 C11.2 9.6 10.6 9.8 10.2 10.4 C9.7 11 9.3 12 9.6 13.4 C10.2 15.8 12.4 18.8 15.4 20.6 C17.6 21.9 19.3 22.2 20.4 21.8 C21.4 21.4 22 20.6 22.1 19.9 C22.2 19.4 22 19.2 21.6 19 L19.2 17.8 C18.8 17.6 18.5 17.7 18.3 18 L17.5 19 C17.3 19.2 17 19.3 16.7 19.1 C15.2 18.4 13.9 17.2 13.1 15.8 C12.9 15.5 13 15.2 13.2 15 L14 14.1 C14.2 13.9 14.3 13.6 14.1 13.3 L13 10.6 C12.8 10 12.4 9.6 11.6 9.6 Z" fill="#fff"/>

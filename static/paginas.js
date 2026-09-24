@@ -367,13 +367,13 @@ document.getElementById("btn-notificacoes").onclick = async () => {
 const MINUTOS_LEMBRETE = 15;
 let timerLembretes = null;
 
-function iniciarLembretes() {
+function iniciarLembretes(abrirMeuDiaSozinho = true) {
   pararLembretes();
   verificarLembretes();
   timerLembretes = setInterval(verificarLembretes, 60000);
-  // Abre o "Meu dia" sozinho na primeira entrada do dia
+  // Abre o "Meu dia" sozinho na primeira entrada do dia (não numa guia aberta só para um lead)
   const chave = `meu-dia-${estado.usuario}`;
-  if (lerLocal(chave) !== hojeISO()) {
+  if (abrirMeuDiaSozinho && lerLocal(chave) !== hojeISO()) {
     gravarLocal(chave, hojeISO());
     setTimeout(() => abrirMeuDia(true), 600);
   }

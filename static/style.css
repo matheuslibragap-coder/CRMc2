@@ -82,7 +82,7 @@ button { font-family: inherit; }
   text-shadow: 4px 4px 0 var(--contorno);
 }
 
-.btn-terra, .btn-chat {
+.btn-terra, .btn-chat, .btn-agenda {
   position: relative;
   display: grid;
   place-items: center;
@@ -99,6 +99,9 @@ button { font-family: inherit; }
 .btn-chat { width: 48px; height: 48px; background: var(--amarelo); }
 .btn-chat span:first-child, .btn-chat svg { width: 30px; height: 30px; display: block; }
 .btn-chat:hover, .btn-chat.ativo { transform: scale(1.06); background: #ffe066; }
+.btn-agenda { width: 48px; height: 48px; background: #b2f2bb; }
+.btn-agenda span, .btn-agenda svg { width: 34px; height: 34px; display: block; }
+.btn-agenda:hover, .btn-agenda.ativo { transform: scale(1.06) rotate(-6deg); background: #d3f9d8; }
 .badge-chat {
   position: absolute;
   top: -8px;
@@ -616,6 +619,9 @@ fieldset legend { margin-bottom: 6px; padding: 0; }
 
 /* Janela do lead: dados à esquerda; atividades e anotações à direita */
 .modal-lead { width: min(1000px, 96vw); }
+.btn-nova-guia { margin-left: auto; font-weight: 700; font-size: 14px; color: #5f3dc4; text-decoration: none; border: 2px solid var(--contorno); border-radius: 999px; padding: 4px 12px; background: #f3f0ff; white-space: nowrap; }
+.btn-nova-guia:hover { background: #e5dbff; }
+.modal-lead .modal-topo .btn-nova-guia + .btn-x { margin-left: 0; }
 .lead-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .lead-lado { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .bloco { border: 2px solid var(--contorno); border-radius: 14px; padding: 10px 12px; background: #fff; }
@@ -1260,3 +1266,25 @@ a.btn { display: inline-block; text-decoration: none; }
 .campo-lead-atividade input { margin: 0 0 6px; }
 .campo-lead-atividade select { margin: 0; }
 .atividade-detalhes { flex-basis: 100%; color: var(--texto-suave); white-space: pre-wrap; }
+
+/* ---------- Agenda em janela (pop-up) ---------- */
+.modal-agenda { width: min(1060px, 94vw); max-height: 88vh; padding: 14px 18px 18px; }
+.modal-agenda .painel.agenda { margin: 0; padding: 0; border: none; box-shadow: none; background: none; }
+.agenda-popup-botoes { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: -40px; position: relative; z-index: 2; }
+.modal-agenda .agenda-topo { padding-right: 150px; }
+.modal-agenda .agenda-grade-horas { max-height: 52vh; }
+.modal-agenda .agenda-dia { min-height: 92px; }
+@media (max-width: 700px) {
+  .agenda-popup-botoes { margin-bottom: 8px; }
+  .modal-agenda .agenda-topo { padding-right: 0; }
+}
+
+/* Nome do lead no card é um link (Ctrl+clique ou botão do meio abre em nova guia) */
+a.card-nome { text-decoration: none; color: var(--texto); flex: 1; width: auto; }
+a.card-nome:hover { text-decoration: underline; }
+.card-nome-linha { display: flex; align-items: flex-start; gap: 6px; }
+.card-nova-guia { flex: none; display: grid; place-items: center; width: 24px; height: 24px; margin-top: 1px; font-size: 13px; font-weight: 700; color: #5f3dc4; text-decoration: none; border: 2px solid var(--contorno); border-radius: 50%; background: #f3f0ff; }
+.card-nova-guia:hover { background: #e5dbff; transform: scale(1.1); }
+.link-fattura + .link-blaster { margin-left: 6px; }
+.link-blaster { background: #fff4e6; }
+.link-blaster:hover { background: #ffe8cc; }
