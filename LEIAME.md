@@ -111,6 +111,14 @@ Os leads, usuários e senhas (criptografadas) ficam no arquivo **`dados/crm.db`*
 
 Nunca coloque o arquivo `crm.db` no GitHub: o repositório é público.
 
+### Exportar os dados em JSON (sem senhas nem tokens)
+No console **Bash**:
+```
+cd ~/master && git pull && python3 exportar_dados.py
+```
+O arquivo fica em `master/dados/exportacao.json` (aba **Files** → clique nele para baixar).
+Ele tem os dados dos clientes: guarde e envie só de forma privada.
+
 ---
 
 ## Rodar no próprio computador (opcional)
